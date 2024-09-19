@@ -2,6 +2,7 @@ import NIOSSL
 import Fluent
 import FluentPostgresDriver
 import Vapor
+import JWT
 
 public func configure(_ app: Application) async throws {
     // MARK: Database
@@ -20,11 +21,38 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
     app.migrations.add(CreateUserSongPreference())
+    app.migrations.add(AddTestUser())
 
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
 
+    app.jwt.signers.use(.hs256(key: "your-secret-key"))
     // MARK: Routes
+    try app.autoMigrate().wait()
     try routes(app)
+}
+
+func createTestUser(app: Application) {
+    // 이미 사용자 생성되어 있는지 확인
+    _ = User.query(on: app.db)
+        .filter(\.$username == "testuser")
+        .first()
+        .flatMap { existingUser in
+            if existingUser == nil {
+                do {
+                    // 비밀번호 해시화
+                    let hashedPassword = try Bcrypt.hash("password123")
+                    
+                    // 새 사용자 생성
+                    let testUser = User(username: "testuser", email: "testuser@example.com", passwordHash: hashedPassword)
+                    
+                    // 데이터베이스에 저장
+                    return testUser.save(on: app.db)
+                } catch {
+                    return app.eventLoopGroup.future(error: error)
+                }
+            }
+            return app.eventLoopGroup.future()
+        }
 }
