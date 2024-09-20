@@ -25,15 +25,27 @@ final class ListeningHistory: Model, Content {
 
     @Field(key: "play_duration")
     var playDuration: Int
+    
+    @Field(key: "genre")
+    var genre: String
+    
+    @Field(key: "title")
+    var title: String
+    
+    @Field(key: "artist")
+    var artist: String
 
     init() { }
 
-    init(id: UUID? = nil, userID: UUID, songID: UUID, listenedAt: Date, playDuration: Int) {
+    init(id: UUID? = nil, userID: UUID, songID: UUID, listenedAt: Date, playDuration: Int, genre: String, title: String, artist: String) {
         self.id = id
         self.$user.id = userID
         self.$song.id = songID
         self.listenedAt = listenedAt
         self.playDuration = playDuration
+        self.genre = genre
+        self.title = title
+        self.artist = artist
     }
 }
 
@@ -45,6 +57,10 @@ struct CreateListeningHistory: Migration {
             .field("song_id", .uuid, .required, .references("songs", "id", onDelete: .cascade))
             .field("listened_at", .datetime, .required)
             .field("play_duration", .int, .required)
+            .field("genre", .string, .required)
+            .field("title", .string, .required)
+            .field("artist", .string, .required)
+
             .create()
     }
 
