@@ -12,15 +12,15 @@ struct SongDTO: Content {
     let genre: String
     let releaseDate: Date
     let duration: Int
-    let artistID: UUID
+    let artist: String
     
-    init(id: UUID? = nil, title: String, genre: String, releaseDate: Date, duration: Int, artistID: UUID) {
+    init(id: UUID? = nil, title: String, genre: String, releaseDate: Date, duration: Int, artist: String) {
         self.id = id
         self.title = title
         self.genre = genre
         self.releaseDate = releaseDate
         self.duration = duration
-        self.artistID = artistID
+        self.artist = artist
     }
     
     init(from song: Song) {
@@ -29,7 +29,7 @@ struct SongDTO: Content {
         self.genre = song.genre
         self.releaseDate = song.releaseDate
         self.duration = song.duration
-        self.artistID = song.$artist.id
+        self.artist = song.artist
     }
 }
 

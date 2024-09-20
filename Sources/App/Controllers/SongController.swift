@@ -42,7 +42,7 @@ struct SongController: RouteCollection {
         song.genre = updatedSong.genre
         song.releaseDate = updatedSong.releaseDate
         song.duration = updatedSong.duration
-        song.$artist.id = updatedSong.$artist.id
+        song.artist = updatedSong.artist
         try await song.save(on: req.db)
         return song
     }

@@ -25,18 +25,18 @@ final class Song: Model, Content {
     @Field(key: "duration")
     var duration: Int
 
-    @Parent(key: "artist_id")
-    var artist: Artist
+    @Field(key: "artist")
+    var artist: String
 
     init() { }
 
-    init(id: UUID? = nil, title: String, genre: String, releaseDate: Date, duration: Int, artistID: UUID) {
+    init(id: UUID? = nil, title: String, genre: String, releaseDate: Date, duration: Int, artist: String) {
         self.id = id
         self.title = title
         self.genre = genre
         self.releaseDate = releaseDate
         self.duration = duration
-        self.$artist.id = artistID
+        self.artist = artist
     }
 }
 
