@@ -20,8 +20,8 @@ final class User: Model, Content {
     @Field(key: "email")
     var email: String
 
-    @Field(key: "password")
-    var password: String
+    @Field(key: "password_hash")
+    var passwordHash: String
 
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
@@ -29,13 +29,13 @@ final class User: Model, Content {
     @Timestamp(key: "updated_at", on: .update)
     var updatedAt: Date?
 
-    init() { }
-
-    init(id: UUID? = nil, username: String, email: String, password: String) {
+    init() {}
+    
+    init(id: UUID? = nil, username: String, email: String, passwordHash: String) {
         self.id = id
         self.username = username
         self.email = email
-        self.password = password
+        self.passwordHash = passwordHash
     }
 }
 
