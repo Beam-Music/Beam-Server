@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class User: Model, Content {
+final class User: Model, Content, Authenticatable {
     static let schema = "users"
 
     @ID(key: .id)
@@ -19,10 +19,13 @@ final class User: Model, Content {
 
     @Field(key: "email")
     var email: String
-
+    
+    @OptionalField(key: "token")
+    var token: String?
+    
     @Field(key: "password_hash")
     var passwordHash: String
-
+    
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -38,22 +41,3 @@ final class User: Model, Content {
         self.passwordHash = passwordHash
     }
 }
-
-//struct CreateUser: Migration {
-//    func prepare(on database: Database) -> EventLoopFuture<Void> {
-//        database.schema("users")
-//            .id()
-//            .field("username", .string, .required)
-//            .field("email", .string, .required)
-//            .field("password", .string, .required)
-//            .field("created_at", .datetime)
-//            .field("updated_at", .datetime)
-//            .unique(on: "email")
-//            .create()
-//    }
-//
-//    func revert(on database: Database) -> EventLoopFuture<Void> {
-//        database.schema("users").delete()
-//    }
-//}
-

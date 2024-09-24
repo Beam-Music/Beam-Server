@@ -22,6 +22,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateListeningHistory())
     app.migrations.add(CreateUserSongPreference())
     app.migrations.add(AddTestUser())
+    app.migrations.add(AddTokenToUsers())
 
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))

@@ -23,13 +23,47 @@ struct UserPayload: JWTPayload, Authenticatable {
 struct UserController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let users = routes.grouped("users")
-        users.post("login", use: login)  // Unprotected route for logging in and getting a token
+        users.post("login", use: login)
+        users.post("register", use: register)
         let tokenProtected = users.grouped(JWTMiddleware())
         tokenProtected.get(":userID", use: get)
         tokenProtected.put(":userID", use: update)
         tokenProtected.delete(":userID", use: delete)
     }
     
+    func register(req: Request) async throws -> HTTPStatus {
+        try RegisterRequest.validate(content: req)
+        let registerRequest = try req.content.decode(RegisterRequest.self)
+        
+        // Check if user already exists
+        if let _ = try await User.query(on: req.db)
+            .filter(\.$username == registerRequest.username)
+            .first() {
+            throw Abort(.conflict, reason: "Username already exists")
+        }
+        
+        if let _ = try await User.query(on: req.db)
+            .filter(\.$email == registerRequest.email)
+            .first() {
+            throw Abort(.conflict, reason: "Email already exists")
+        }
+        
+        // Hash the password
+        let hashedPassword = try Bcrypt.hash(registerRequest.password)
+        
+        // Create new user
+        let user = User(
+            username: registerRequest.username,
+            email: registerRequest.email,
+            passwordHash: hashedPassword
+        )
+        
+        // Save user to database
+        try await user.save(on: req.db)
+        
+        return .created
+    }
+
 
     func get(req: Request) async throws -> User {
         // 인증된 사용자 정보를 JWT에서 추출
@@ -87,13 +121,25 @@ struct UserController: RouteCollection {
     }
 }
 
-// Request for login
+struct RegisterRequest: Content {
+    let username: String
+    let email: String
+    let password: String
+}
+
+extension RegisterRequest: Validatable {
+    static func validations(_ validations: inout Validations) {
+        validations.add("username", as: String.self, is: !.empty && .count(3...))
+        validations.add("email", as: String.self, is: .email)
+        validations.add("password", as: String.self, is: .count(8...))
+    }
+}
+
 struct LoginRequest: Content {
     let username: String
     let password: String
 }
 
-// Response with JWT token
 struct TokenResponse: Content {
     let token: String
 }
