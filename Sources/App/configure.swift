@@ -3,8 +3,8 @@ import Fluent
 import FluentPostgresDriver
 import Vapor
 import JWT
-
-public func configure(_ app: Application) async throws {
+import SendGrid
+public func configure(_ app: Application) async throws { 
     // MARK: Database
     app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
         hostname: Environment.get("DATABASE_HOST") ?? "localhost",
@@ -23,6 +23,8 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserSongPreference())
     app.migrations.add(AddTestUser())
     app.migrations.add(AddTokenToUsers())
+    app.migrations.add(AddEmailVerificationFieldsToUser())
+    app.sendgrid.initialize()
 
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))

@@ -9,6 +9,7 @@ import Vapor
 import JWT
 import Fluent
 import Crypto
+import SendGrid
 
 struct UserPayload: JWTPayload, Authenticatable {
     var username: String
@@ -35,7 +36,6 @@ struct UserController: RouteCollection {
         try RegisterRequest.validate(content: req)
         let registerRequest = try req.content.decode(RegisterRequest.self)
         
-        // Check if user already exists
         if let _ = try await User.query(on: req.db)
             .filter(\.$username == registerRequest.username)
             .first() {
@@ -48,41 +48,83 @@ struct UserController: RouteCollection {
             throw Abort(.conflict, reason: "Email already exists")
         }
         
-        // Hash the password
         let hashedPassword = try Bcrypt.hash(registerRequest.password)
         
-        // Create new user
+        let verificationToken = UUID().uuidString
+
         let user = User(
             username: registerRequest.username,
             email: registerRequest.email,
-            passwordHash: hashedPassword
+            passwordHash: hashedPassword,
+            isVerified: false,
+            verificationToken: verificationToken
         )
         
-        // Save user to database
         try await user.save(on: req.db)
+        try await sendVerificationEmail(to: user, on: req)
         
         return .created
     }
 
+    func verifyEmail(req: Request) async throws -> HTTPStatus {
+        guard let token = req.parameters.get("token") else {
+            throw Abort(.badRequest, reason: "Missing verification token")
+        }
+        
+        guard let user = try await User.query(on: req.db)
+            .filter(\.$verificationToken == token)
+            .first() else {
+            throw Abort(.notFound, reason: "Invalid verification token")
+        }
+        
+        user.isVerified = true
+        user.verificationToken = nil
+        try await user.save(on: req.db)
+        
+        return .ok
+    }
 
+    private func sendVerificationEmail(to user: User, on req: Request) async throws {
+        let verificationLink = "http://localhost:8080/api/users/verify/\(user.verificationToken ?? "")"
+        
+        let email = SendGridEmail(
+            personalizations: [
+                Personalization(
+                    to: [.init(email: user.email)],
+                    subject: "Verify Your Email"
+                )
+            ],
+            from: .init(email: "noreply@yourapp.com"), // 발신 이메일
+            content: [
+                [
+                    "type": "text/plain",
+                    "value": "Please click the following link to verify your email: \(verificationLink)"
+                ],
+                [
+                    "type": "text/html",
+                    "value": "<html><body><h1>Email Verification</h1><p>Please click <a href='\(verificationLink)'>here</a> to verify your email.</p></body></html>"
+                ]
+            ]
+        )
+        
+        let sendGridClient = req.application.sendgrid.client
+        try await sendGridClient.send(email: email)
+    }
+    
     func get(req: Request) async throws -> User {
-        // 인증된 사용자 정보를 JWT에서 추출
         let payload = try req.auth.require(UserPayload.self)
 
-        // JWT에서 추출한 사용자 이름으로 DB에서 사용자를 찾음
         guard let user = try await User.query(on: req.db)
             .filter(\.$username == payload.username)
             .first() else {
             throw Abort(.notFound)
         }
-
         return user
     }
 
     func login(req: Request) async throws -> TokenResponse {
         let loginRequest = try req.content.decode(LoginRequest.self)
 
-        // Authenticate user (ensure this logic works for you)
         guard let user = try await User.query(on: req.db)
             .filter(\.$username == loginRequest.username)
             .first() else {

@@ -1,5 +1,5 @@
 {
-  "originHash" : "fd6cd64998d341ade080ae67177eda7585c41d94a510d347adde22d477f73d6d",
+  "originHash" : "a8021ff89c98da802a8497143aa81a90543573d3cc95042ed3c1d363db03856e",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -107,6 +107,24 @@
       "state" : {
         "revision" : "8c9a227476555c55837e569be71944e02a056b72",
         "version" : "4.9.1"
+      }
+    },
+    {
+      "identity" : "sendgrid",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor-community/sendgrid.git",
+      "state" : {
+        "revision" : "c744bc4398bd8dec50e3a6cfb0cdeca1aa853c07",
+        "version" : "4.0.0"
+      }
+    },
+    {
+      "identity" : "sendgrid-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor-community/sendgrid-kit.git",
+      "state" : {
+        "revision" : "2da9f9558c690af07219b1e63f126105b747fec8",
+        "version" : "1.1.0"
       }
     },
     {

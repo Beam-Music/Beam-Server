@@ -26,6 +26,12 @@ final class User: Model, Content, Authenticatable {
     @Field(key: "password_hash")
     var passwordHash: String
     
+    @Field(key: "is_verified")
+    var isVerified: Bool
+    
+    @OptionalField(key: "verification_token")
+    var verificationToken: String?
+    
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
 
@@ -34,10 +40,12 @@ final class User: Model, Content, Authenticatable {
 
     init() {}
     
-    init(id: UUID? = nil, username: String, email: String, passwordHash: String) {
+    init(id: UUID? = nil, username: String, email: String, passwordHash: String, isVerified: Bool = false, verificationToken: String? = nil) {
         self.id = id
         self.username = username
         self.email = email
         self.passwordHash = passwordHash
+        self.isVerified = isVerified
+        self.verificationToken = verificationToken
     }
 }
