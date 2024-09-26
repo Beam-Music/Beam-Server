@@ -14,6 +14,14 @@ public func configure(_ app: Application) async throws {
         database: Environment.get("DATABASE_NAME") ?? "BeamMusicDB",
         tls: .prefer(try .init(configuration: .clientDefault)))
     ), as: .psql)
+//    app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
+//        hostname: Environment.get("DATABASE_HOST") ?? "localhost",
+//        port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
+//        username: Environment.get("DATABASE_USERNAME") ?? "vapor_username",
+//        password: Environment.get("DATABASE_PASSWORD") ?? "vapor_password",
+//        database: Environment.get("DATABASE_NAME") ?? "vapor_database",
+//        tls: .prefer(try .init(configuration: .clientDefault)))
+//    ), as: .psql)
 
     // MARK: Migrations
     app.migrations.add(CreateUser())
@@ -43,13 +51,11 @@ func createTestUser(app: Application) {
         .flatMap { existingUser in
             if existingUser == nil {
                 do {
-                    // 비밀번호 해시화
                     let hashedPassword = try Bcrypt.hash("password123")
                     
-                    // 새 사용자 생성
+                    // 새 사용자 생성, 회원가입 todo..
                     let testUser = User(username: "testuser", email: "testuser@example.com", passwordHash: hashedPassword)
                     
-                    // 데이터베이스에 저장
                     return testUser.save(on: app.db)
                 } catch {
                     return app.eventLoopGroup.future(error: error)
