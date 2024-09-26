@@ -39,21 +39,3 @@ final class User: Model, Content {
     }
 }
 
-//struct CreateUser: Migration {
-//    func prepare(on database: Database) -> EventLoopFuture<Void> {
-//        database.schema("users")
-//            .id()
-//            .field("username", .string, .required)
-//            .field("email", .string, .required)
-//            .field("password", .string, .required)
-//            .field("created_at", .datetime)
-//            .field("updated_at", .datetime)
-//            .unique(on: "email")
-//            .create()
-//    }
-//
-//    func revert(on database: Database) -> EventLoopFuture<Void> {
-//        database.schema("users").delete()
-//    }
-//}
-

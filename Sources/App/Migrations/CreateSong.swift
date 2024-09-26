@@ -13,6 +13,7 @@ struct CreateSong: AsyncMigration {
             .id()
             .field("title", .string, .required)
             .field("artist_id", .uuid, .required, .references("artists", "id"))
+            .field("artist", .string, .required)
             .field("genre", .string)
             .field("release_date", .date)
             .field("duration", .int)
