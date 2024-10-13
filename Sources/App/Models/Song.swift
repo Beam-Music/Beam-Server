@@ -15,7 +15,7 @@ final class Song: Model, Content {
 
     @Field(key: "title")
     var title: String
-
+    
     @Field(key: "genre")
     var genre: String
 
@@ -25,8 +25,8 @@ final class Song: Model, Content {
     @Field(key: "duration")
     var duration: Int
 
-    @Parent(key: "artist_id")
-    var artist: Artist
+    @OptionalParent(key: "artist_id")
+    var artist: Artist?
 
     init() { }
 
