@@ -32,7 +32,8 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddTestUser())
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
-
+    app.http.server.configuration.hostname = "192.168.0.104"
+        app.http.server.configuration.port = 8080
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
@@ -44,7 +45,6 @@ public func configure(_ app: Application) async throws {
 }
 
 func createTestUser(app: Application) {
-    // 이미 사용자 생성되어 있는지 확인
     _ = User.query(on: app.db)
         .filter(\.$username == "testuser")
         .first()
