@@ -31,10 +31,8 @@ struct UserController: RouteCollection {
     
 
     func get(req: Request) async throws -> User {
-        // 인증된 사용자 정보를 JWT에서 추출
         let payload = try req.auth.require(UserPayload.self)
 
-        // JWT에서 추출한 사용자 이름으로 DB에서 사용자를 찾음
         guard let user = try await User.query(on: req.db)
             .filter(\.$username == payload.username)
             .first() else {
@@ -55,7 +53,7 @@ struct UserController: RouteCollection {
         
         let passwordMatches = try Bcrypt.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
-            throw Abort(.unauthorized)  // 비밀번호가 틀릴 때
+            throw Abort(.unauthorized)
         }
 
         let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
