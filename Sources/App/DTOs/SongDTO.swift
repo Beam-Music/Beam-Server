@@ -12,7 +12,7 @@ struct SongDTO: Content {
     let genre: String
     let releaseDate: Date
     let duration: Int
-    let artistID: UUID
+    let artistID: UUID?
     
     init(id: UUID? = nil, title: String, genre: String, releaseDate: Date, duration: Int, artistID: UUID) {
         self.id = id

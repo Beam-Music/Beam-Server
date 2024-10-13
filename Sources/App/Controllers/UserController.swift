@@ -14,7 +14,6 @@ struct UserPayload: JWTPayload, Authenticatable {
     var username: String
     var exp: ExpirationClaim
 
-    // This method ensures that the JWT payload is valid (expiration is not passed)
     func verify(using signer: JWTSigner) throws {
         try exp.verifyNotExpired()
     }
@@ -23,7 +22,7 @@ struct UserPayload: JWTPayload, Authenticatable {
 struct UserController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let users = routes.grouped("users")
-        users.post("login", use: login)  // Unprotected route for logging in and getting a token
+        users.post("login", use: login)
         let tokenProtected = users.grouped(JWTMiddleware())
         tokenProtected.get(":userID", use: get)
         tokenProtected.put(":userID", use: update)
@@ -32,10 +31,8 @@ struct UserController: RouteCollection {
     
 
     func get(req: Request) async throws -> User {
-        // 인증된 사용자 정보를 JWT에서 추출
         let payload = try req.auth.require(UserPayload.self)
 
-        // JWT에서 추출한 사용자 이름으로 DB에서 사용자를 찾음
         guard let user = try await User.query(on: req.db)
             .filter(\.$username == payload.username)
             .first() else {
@@ -48,7 +45,6 @@ struct UserController: RouteCollection {
     func login(req: Request) async throws -> TokenResponse {
         let loginRequest = try req.content.decode(LoginRequest.self)
 
-        // Authenticate user (ensure this logic works for you)
         guard let user = try await User.query(on: req.db)
             .filter(\.$username == loginRequest.username)
             .first() else {
@@ -57,7 +53,7 @@ struct UserController: RouteCollection {
         
         let passwordMatches = try Bcrypt.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
-            throw Abort(.unauthorized)  // 비밀번호가 틀릴 때
+            throw Abort(.unauthorized)
         }
 
         let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
@@ -87,13 +83,11 @@ struct UserController: RouteCollection {
     }
 }
 
-// Request for login
 struct LoginRequest: Content {
     let username: String
     let password: String
 }
 
-// Response with JWT token
 struct TokenResponse: Content {
     let token: String
 }
