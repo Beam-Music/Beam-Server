@@ -32,7 +32,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddTestUser())
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
-    app.http.server.configuration.hostname = "192.168.0.104"
+    app.http.server.configuration.hostname = "192.168.0.14"
         app.http.server.configuration.port = 8080
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
@@ -40,7 +40,7 @@ public func configure(_ app: Application) async throws {
 
     app.jwt.signers.use(.hs256(key: "your-secret-key"))
     // MARK: Routes
-    try app.autoMigrate().wait()
+    try await app.autoMigrate().get()
     try routes(app)
 }
 
