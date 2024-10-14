@@ -38,39 +38,19 @@ struct RecommendPlaylistController: RouteCollection {
         return playlist
     }
     
-//    func getSongs(req: Request) async throws -> [SongDTO] {
-//        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
-//            throw Abort(.badRequest)
-//        }
-//
-//        guard let playlist = try await RecommendPlaylist.find(playlistID, on: req.db) else {
-//            throw Abort(.notFound)
-//        }
-//
-//        let songIDs = playlist.songs.map { $0.id }
-//
-//        let songs = try await Song.query(on: req.db)
-//            .filter(\.$id ~~ songIDs.compactMap { $0 })
-//            .all()
-//        
-//        return songs.map { SongDTO(from: $0) }
-//    }
     func getSongs(req: Request) async throws -> [SongDTO] {
         guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
             throw Abort(.badRequest)
         }
-
-        // Eager load the songs relationship
+        
         guard let playlist = try await RecommendPlaylist
             .query(on: req.db)
             .filter(\.$id == playlistID)
-            .with(\.$songs)  // Siblings 관계를 미리 로드
+            .with(\.$songs)
             .first()
         else {
             throw Abort(.notFound)
         }
-
-        // playlist.songs를 바로 사용할 수 있습니다.
         let songs = playlist.songs
         
         return songs.map { SongDTO(from: $0) }
