@@ -32,7 +32,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddTestUser())
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
-    app.http.server.configuration.hostname = "192.168.0.14"
+    app.http.server.configuration.hostname = "192.168.0.30"
         app.http.server.configuration.port = 8080
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
@@ -52,10 +52,7 @@ func createTestUser(app: Application) {
             if existingUser == nil {
                 do {
                     let hashedPassword = try Bcrypt.hash("password123")
-                    
-                    // 새 사용자 생성, 회원가입 todo..
                     let testUser = User(username: "testuser", email: "testuser@example.com", passwordHash: hashedPassword)
-                    
                     return testUser.save(on: app.db)
                 } catch {
                     return app.eventLoopGroup.future(error: error)
