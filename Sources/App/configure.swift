@@ -34,7 +34,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
-    app.http.server.configuration.hostname = "192.168.0.30"
+    app.http.server.configuration.hostname = "192.168.0.33"
         app.http.server.configuration.port = 8080
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
