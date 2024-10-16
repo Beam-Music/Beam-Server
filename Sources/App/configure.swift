@@ -3,6 +3,7 @@ import Fluent
 import FluentPostgresDriver
 import Vapor
 import JWT
+import SendGrid
 
 public func configure(_ app: Application) async throws {
     // MARK: Database
@@ -32,12 +33,12 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddTestUser())
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
-    app.http.server.configuration.hostname = "192.168.0.30"
+    app.migrations.add(CreateVerification())
+    app.http.server.configuration.hostname = "192.168.0.33"
         app.http.server.configuration.port = 8080
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
-
     app.jwt.signers.use(.hs256(key: "your-secret-key"))
     // MARK: Routes
     try await app.autoMigrate().get()
