@@ -37,8 +37,25 @@ struct UserController: RouteCollection {
     func register(req: Request) async throws -> HTTPStatus {
         let registerRequest = try req.content.decode(RegisterRequest.self)
         
-        guard try await User.query(on: req.db).filter(\.$email == registerRequest.email).first() == nil else {
-            throw Abort(.conflict, reason: "User with this email already exists.")
+        if let existingUser = try await User.query(on: req.db).filter(\.$email == registerRequest.email).first() {
+            let verificationCode = String(Int.random(in: 100000...999999))
+            let expiresAt = Date().addingTimeInterval(600)
+            
+            if let existingVerification = try await Verification.query(on: req.db)
+                .filter(\.$email == registerRequest.email)
+                .first() {
+                existingVerification.code = verificationCode
+                existingVerification.expiresAt = expiresAt
+                try await existingVerification.save(on: req.db)
+            } else {
+                let newVerification = Verification(email: registerRequest.email, code: verificationCode, expiresAt: expiresAt)
+                try await newVerification.save(on: req.db)
+            }
+            
+            let emailController = EmailController()
+            try await emailController.sendVerificationEmail(req: req, user: existingUser, verificationCode: verificationCode)
+            
+            return .ok
         }
         
         let hashedPassword = try Bcrypt.hash(registerRequest.password)
@@ -51,7 +68,6 @@ struct UserController: RouteCollection {
         let verification = Verification(email: registerRequest.email, code: verificationCode, expiresAt: expiresAt)
         try await verification.save(on: req.db)
         
-        let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
         let emailController = EmailController()
 
         try await emailController.sendVerificationEmail(req: req, user: user, verificationCode: verificationCode)
