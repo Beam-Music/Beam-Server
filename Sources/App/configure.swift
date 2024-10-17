@@ -56,13 +56,16 @@ func createTestUser(app: Application) {
         .flatMap { existingUser in
             if existingUser == nil {
                 do {
+                    // 비밀번호를 해시화하여 사용자 객체 생성
                     let hashedPassword = try Bcrypt.hash("password123")
                     let testUser = User(username: "testuser", email: "testuser@example.com", passwordHash: hashedPassword)
                     return testUser.save(on: app.db)
                 } catch {
+                    // 에러 처리
                     return app.eventLoopGroup.future(error: error)
                 }
             }
             return app.eventLoopGroup.future()
         }
 }
+
