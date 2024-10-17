@@ -26,14 +26,27 @@ struct AddPasswordHashToUser: Migration {
     func prepare(on database: Database) -> EventLoopFuture<Void> {
         database.schema("users")
             .field("password_hash", .string, .required)
-            .field("is_verified", .bool, .required)
             .update()
     }
 
     func revert(on database: Database) -> EventLoopFuture<Void> {
         database.schema("users")
             .deleteField("password_hash")
+            .update()
+    }
+}
+
+struct AddIsVerifiedToUser: Migration {
+    func prepare(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("users")
+            .field("is_verified", .bool, .required)
+            .update()
+    }
+
+    func revert(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("users")
             .deleteField("is_verified")
             .update()
     }
 }
+
