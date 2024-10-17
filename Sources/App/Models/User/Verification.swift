@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class Verification: Model, Content, Sendable {
+final class Verification: Model, Content {
     static let schema = "verifications"
     
     @ID(key: .id)
