@@ -25,6 +25,7 @@ public func configure(_ app: Application) async throws {
     
     // MARK: Migrations
 //    app.migrations.add(CreateUser())
+    app.migrations.add(AddPasswordHashToUser())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
