@@ -34,7 +34,7 @@ final class User: Model, Content {
 
     init() {}
     
-    init(id: UUID? = nil, username: String, email: String, passwordHash: String, isVerified: Bool = false) {
+    init(id: UUID? = nil, username: String, email: String) {
         self.id = id
         self.username = username
         self.email = email
