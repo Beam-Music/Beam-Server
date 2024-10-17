@@ -9,7 +9,8 @@ public func configure(_ app: Application) async throws {
     // MARK: Database
     if let databaseURL = Environment.get("DATABASE_URL"),
        var config = PostgresConfiguration(url: databaseURL) {
-        config.tlsConfiguration = .makeClientConfiguration()
+//        config.tlsConfiguration = .makeClientConfiguration()
+        config.tlsConfiguration = .forClient(certificateVerification: .none)
         app.databases.use(.postgres(configuration: config), as: .psql)
     } else {
         app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
