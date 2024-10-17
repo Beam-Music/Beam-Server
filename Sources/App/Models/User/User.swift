@@ -20,17 +20,17 @@ final class User: Model, Content {
     @Field(key: "email")
     var email: String
 
-    @Field(key: "password_hash")
-    var passwordHash: String
-
-    @Field(key: "is_verified")
-    var isVerified: Bool
-
-    @Timestamp(key: "created_at", on: .create)
-    var createdAt: Date?
-
-    @Timestamp(key: "updated_at", on: .update)
-    var updatedAt: Date?
+//    @Field(key: "password_hash")
+//    var passwordHash: String
+//
+//    @Field(key: "is_verified")
+//    var isVerified: Bool
+//
+//    @Timestamp(key: "created_at", on: .create)
+//    var createdAt: Date?
+//
+//    @Timestamp(key: "updated_at", on: .update)
+//    var updatedAt: Date?
 
     init() {}
     
@@ -38,7 +38,7 @@ final class User: Model, Content {
         self.id = id
         self.username = username
         self.email = email
-        self.passwordHash = passwordHash
-        self.isVerified = isVerified
+//        self.passwordHash = passwordHash
+//        self.isVerified = isVerified
     }
 }
