@@ -7,7 +7,7 @@
 import Vapor
 import Fluent
 
-final class UserPlaylist: Model, Content {
+final class UserPlaylist: Model, Content, @unchecked Sendable {
     static let schema = "user_playlists"
     
     @ID(key: .id)
@@ -32,7 +32,7 @@ final class UserPlaylist: Model, Content {
 }
 
 // PlaylistSong 모델 정의 (Many-to-Many 관계를 위한 피벗 모델)
-final class PlaylistSong: Model {
+final class PlaylistSong: Model, @unchecked Sendable {
     static let schema = "playlist_songs"
     
     @ID(key: .id)
