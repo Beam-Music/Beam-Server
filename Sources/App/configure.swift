@@ -74,7 +74,7 @@ func createTestUser(app: Application) {
             if existingUser == nil {
                 do {
                     let hashedPassword = try Bcrypt.hash("password123")
-                    let testUser = User(username: "testuser", email: "testuser@example.com", passwordHash: hashedPassword)
+                    let testUser = User(username: "testuser", email: "testuser@example.com")
                     return testUser.save(on: app.db)
                 } catch {
                     return app.eventLoopGroup.future(error: error)
