@@ -20,7 +20,7 @@ final class User: Model, Content, @unchecked Sendable {
     @Field(key: "email")
     var email: String
 
-    @Field(key: "password_hash")
+    @Field(key: "password")
     var passwordHash: String
 
     @Field(key: "is_verified")
