@@ -7,10 +7,30 @@ import SendGrid
 
 public func configure(_ app: Application) async throws {
     // MARK: Database
-    if let databaseURL = Environment.get("DATABASE_URL") {
-       let config = try SQLPostgresConfiguration(url: databaseURL)
+//    if let databaseURL = Environment.get("DATABASE_URL") {
+//       let config = try SQLPostgresConfiguration(url: databaseURL)
+//        app.databases.use(.postgres(
+//            configuration: config,
+//            maxConnectionsPerEventLoop: 1,
+//            connectionPoolTimeout: .seconds(10)
+//        ), as: .psql)
+//    } else {
+//        app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
+//            hostname: Environment.get("DATABASE_HOST") ?? "localhost",
+//            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
+//            username: Environment.get("DATABASE_USERNAME") ?? "your-username",
+//            password: Environment.get("DATABASE_PASSWORD") ?? "your-password",
+//            database: Environment.get("DATABASE_NAME") ?? "your-database",
+//            tls: .prefer(try .init(configuration: .clientDefault))),
+//            maxConnectionsPerEventLoop: 1,
+//            connectionPoolTimeout: .seconds(10)
+//        ), as: .psql)
+//    }
+    if let databaseURL = Environment.get("DATABASE_URL"),
+       var config = PostgresConfiguration(url: databaseURL) {
         config.tlsConfiguration = .makeClientConfiguration()
         config.tlsConfiguration?.certificateVerification = .none
+
         app.databases.use(.postgres(
             configuration: config,
             maxConnectionsPerEventLoop: 1,
@@ -19,7 +39,7 @@ public func configure(_ app: Application) async throws {
     } else {
         app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
+            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? PostgresConfiguration.ianaPortNumber,
             username: Environment.get("DATABASE_USERNAME") ?? "your-username",
             password: Environment.get("DATABASE_PASSWORD") ?? "your-password",
             database: Environment.get("DATABASE_NAME") ?? "your-database",
@@ -28,6 +48,7 @@ public func configure(_ app: Application) async throws {
             connectionPoolTimeout: .seconds(10)
         ), as: .psql)
     }
+
 
     // MARK: Migrations
     app.migrations.add(AddPasswordHashToUser())
