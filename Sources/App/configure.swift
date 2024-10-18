@@ -32,6 +32,7 @@ public func configure(_ app: Application) async throws {
 
 
     // MARK: Migrations
+    app.migrations.add(CreateRecommendPlaylist())
     app.migrations.add(RemovePasswordFromUsers())
     app.migrations.add(AddPasswordHashToUser())
     app.migrations.add(AddIsVerifiedToUser())
