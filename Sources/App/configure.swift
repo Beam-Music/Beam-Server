@@ -40,7 +40,6 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
     app.migrations.add(CreateUserSongPreference())
-//    app.migrations.add(AddTestUser())
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
@@ -55,5 +54,6 @@ public func configure(_ app: Application) async throws {
     app.jwt.signers.use(.hs256(key: "your-secret-key"))
     // MARK: Routes
     try await app.autoMigrate().get()
+    try app.autoMigrate().wait()
     try routes(app)
 }
