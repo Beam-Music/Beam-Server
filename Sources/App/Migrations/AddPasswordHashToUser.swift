@@ -4,7 +4,7 @@
 //
 //  Created by freed on 10/17/24.
 //
-
+import Fluent
 
 struct AddPasswordHashToUser: Migration {
     func prepare(on database: Database) -> EventLoopFuture<Void> {
