@@ -7,23 +7,10 @@ import SendGrid
 
 public func configure(_ app: Application) async throws {
     // MARK: Database
-//    if let databaseURL = Environment.get("DATABASE_URL"),
-//       var config = PostgresConfiguration(url: databaseURL) {
-////        config.tlsConfiguration = .makeClientConfiguration()
-//        config.tlsConfiguration = .forClient(certificateVerification: .none)
-//        app.databases.use(.postgres(configuration: config), as: .psql)
-//    } else {
-//        app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
-//            hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-//            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
-//            username: Environment.get("DATABASE_USERNAME") ?? "freedfreed",
-//            password: Environment.get("DATABASE_PASSWORD") ?? "soda1223!!",
-//            database: Environment.get("DATABASE_NAME") ?? "BeamMusicDB",
-//            tls: .prefer(try .init(configuration: .clientDefault)))
-//        ), as: .psql)
-//    }
     if let databaseURL = Environment.get("DATABASE_URL") {
        let config = try SQLPostgresConfiguration(url: databaseURL)
+        config.tlsConfiguration = .makeClientConfiguration()
+        config.tlsConfiguration?.certificateVerification = .none
         app.databases.use(.postgres(
             configuration: config,
             maxConnectionsPerEventLoop: 1,
@@ -42,9 +29,7 @@ public func configure(_ app: Application) async throws {
         ), as: .psql)
     }
 
-
     // MARK: Migrations
-//    app.migrations.add(CreateUser())
     app.migrations.add(AddPasswordHashToUser())
     app.migrations.add(AddIsVerifiedToUser())
     app.migrations.add(CreateArtist())
