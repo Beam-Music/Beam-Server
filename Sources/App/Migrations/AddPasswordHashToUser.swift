@@ -1,23 +1,21 @@
 //
-//  File.swift
-//  
+//  AddPasswordHashToUser.swift
+//  Beam-Music-Server
 //
-//  Created by freed on 9/13/24.
+//  Created by freed on 10/17/24.
 //
-
 import Fluent
 
-struct AddIsVerifiedToUser: Migration {
+struct AddPasswordHashToUser: Migration {
     func prepare(on database: Database) -> EventLoopFuture<Void> {
         database.schema("users")
-            .field("is_verified", .bool, .required)
+            .field("password_hash", .string, .required)
             .update()
     }
 
     func revert(on database: Database) -> EventLoopFuture<Void> {
         database.schema("users")
-            .deleteField("is_verified")
+            .deleteField("password_hash")
             .update()
     }
 }
-
