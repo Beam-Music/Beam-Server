@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class User: Model, Content {
+final class User: Model, Content, @unchecked Sendable {
     static let schema = "users"
 
     @ID(key: .id)
@@ -20,18 +20,14 @@ final class User: Model, Content {
     @Field(key: "email")
     var email: String
 
+//    @Field(key: "password")
+//    var password: String
+    
     @Field(key: "password_hash")
     var passwordHash: String
 
     @Field(key: "is_verified")
     var isVerified: Bool
-
-    @Timestamp(key: "created_at", on: .create)
-    var createdAt: Date?
-
-    @Timestamp(key: "updated_at", on: .update)
-    var updatedAt: Date?
-
     init() {}
     
     init(id: UUID? = nil, username: String, email: String, passwordHash: String, isVerified: Bool = false) {

@@ -8,7 +8,7 @@
 import Vapor
 import Fluent
 
-final class RecommendPlaylist: Model, Content {
+final class RecommendPlaylist: Model, Content, @unchecked Sendable {
     static let schema = "playlist_recommendation"
     
     @ID(key: .id)
@@ -29,7 +29,7 @@ final class RecommendPlaylist: Model, Content {
 }
 
 // RecommendPlaylistSong 피벗 모델 정의 (Many-to-Many 관계)
-final class RecommendPlaylistSong: Model {
+final class RecommendPlaylistSong: Model, @unchecked Sendable {
     static let schema = "recommend_playlists_songs"
     
     @ID(key: .id)
