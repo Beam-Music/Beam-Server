@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class ListeningHistory: Model, Content {
+final class ListeningHistory: Model, Content, @unchecked Sendable {
     static let schema = "listening_history"
 
     @ID(key: .id)

@@ -94,7 +94,6 @@ struct UserController: RouteCollection {
             .first() else {
                 throw Abort(.notFound, reason: "User not found")
         }
-        
         user.isVerified = true
         try await user.save(on: req.db)
         

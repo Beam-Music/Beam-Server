@@ -10,7 +10,10 @@ import SendGrid
 
 struct EmailController {
     func sendVerificationEmail(req: Request, user: User, verificationCode: String) async throws {
-        let sendGridClient = SendGridClient(httpClient: req.application.http.client.shared, apiKey: "")
+        guard let sendGridAPIKey = Environment.get("SENDGRID_API_KEY") else {
+           throw Abort(.internalServerError, reason: "SendGrid API key not configured.")
+        }
+        let sendGridClient = SendGridClient(httpClient: req.application.http.client.shared, apiKey: sendGridAPIKey)
         
         let email = SendGridEmail(
             personalizations: [
