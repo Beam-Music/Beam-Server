@@ -65,6 +65,7 @@ struct CreateRecommendPlaylistSong: AsyncMigration {
             .id()
             .field("playlist_id", .uuid, .required, .references("playlist_recommendation", "id"))
             .field("song_id", .uuid, .required, .references("songs", "id"))
+            .ignoreExisting()
             .create()
     }
 
