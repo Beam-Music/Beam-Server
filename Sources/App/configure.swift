@@ -33,6 +33,7 @@ public func configure(_ app: Application) async throws {
 
     // MARK: Migrations
     app.migrations.add(CreateRecommendPlaylist())
+    app.migrations.add(CreateRecommendPlaylistSong())
     app.migrations.add(RemovePasswordFromUsers())
     app.migrations.add(AddPasswordHashToUser())
     app.migrations.add(AddIsVerifiedToUser())
@@ -43,6 +44,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
+    app.migrations.add(CreateAISong())
     //    app.http.server.configuration.hostname = "192.168.0.33"
     //    app.http.server.configuration.port = 8080
     app.http.server.configuration.hostname = "0.0.0.0"
