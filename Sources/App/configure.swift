@@ -21,9 +21,9 @@ public func configure(_ app: Application) async throws {
         app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
             port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? PostgresConfiguration.ianaPortNumber,
-            username: Environment.get("DATABASE_USERNAME") ?? "your-username",
-            password: Environment.get("DATABASE_PASSWORD") ?? "your-password",
-            database: Environment.get("DATABASE_NAME") ?? "your-database",
+            username: Environment.get("DATABASE_USERNAME") ?? "beamMusicMaster",
+            password: Environment.get("DATABASE_PASSWORD") ?? "soda1223!!",
+            database: Environment.get("DATABASE_NAME") ?? "BeamMusicDB",
             tls: .prefer(try .init(configuration: .clientDefault))),
             maxConnectionsPerEventLoop: 1,
             connectionPoolTimeout: .seconds(10)
@@ -32,10 +32,12 @@ public func configure(_ app: Application) async throws {
 
 
     // MARK: Migrations
+    app.migrations.add(CreateUser())
+    app.migrations.add(RemovePasswordFromUsers())
     app.migrations.add(CreateRecommendPlaylist())
     app.migrations.add(RemovePasswordFromUsers())
-    app.migrations.add(AddPasswordHashToUser())
-    app.migrations.add(AddIsVerifiedToUser())
+//    app.migrations.add(AddPasswordHashToUser())
+//    app.migrations.add(AddIsVerifiedToUser())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
