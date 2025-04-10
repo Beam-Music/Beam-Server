@@ -13,4 +13,5 @@ func routes(_ app: Application) throws {
     try app.register(collection: UserSongPreferenceController())
     try app.register(collection: UserPlaylistController())
     try app.register(collection: RecommendPlaylistController())
+    try app.register(collection: AIPreferenceController())
 }

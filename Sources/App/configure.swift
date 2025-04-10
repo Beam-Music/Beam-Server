@@ -45,6 +45,11 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
+    app.migrations.add(AddSongIDToAiSongs())
+    app.migrations.add(BackfillAiSongSongID())
+    app.migrations.add(SeedDefaultArtist())
+    app.migrations.add(RemoveArtistColumnFromSongs())
+    app.migrations.add(SeedAIMusic())
     //    app.http.server.configuration.hostname = "192.168.0.33"
     //    app.http.server.configuration.port = 8080
     app.http.server.configuration.hostname = "0.0.0.0"
