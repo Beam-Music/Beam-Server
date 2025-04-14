@@ -33,16 +33,28 @@ struct SongController: RouteCollection {
         return song
     }
 
+    
+    
     func update(req: Request) async throws -> Song {
         guard let song = try await Song.find(req.parameters.get("songID"), on: req.db) else {
             throw Abort(.notFound)
         }
-        let updatedSong = try req.content.decode(Song.self)
-        song.title = updatedSong.title
-        song.genre = updatedSong.genre
-        song.releaseDate = updatedSong.releaseDate
-        song.duration = updatedSong.duration
-        song.$artist.id = updatedSong.$artist.id
+        let updatedSongData = try req.content.decode(Song.self)
+
+        // 기존 song 객체의 필드를 업데이트
+        song.title = updatedSongData.title
+        song.genre = updatedSongData.genre
+        song.releaseDate = updatedSongData.releaseDate
+        song.duration = updatedSongData.duration
+
+        // --- 오류 수정된 부분 ---
+        // 'artist'는 String 필드이므로 직접 값을 할당합니다.
+        song.artist = updatedSongData.artist
+        // --- 수정 완료 ---
+
+        // isAIGenerated 필드도 업데이트가 필요하다면 추가:
+        // song.isAIGenerated = updatedSongData.isAIGenerated
+
         try await song.save(on: req.db)
         return song
     }

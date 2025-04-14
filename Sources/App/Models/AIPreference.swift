@@ -13,13 +13,7 @@ final class AIPreference: Model, Content {
     @Field(key: "enable_ai_music")
     var enableAIMusic: Bool
     
-    @Timestamp(key: "created_at", on: .create)
-    var createdAt: Date?
-    
-    @Timestamp(key: "updated_at", on: .update)
-    var updatedAt: Date?
-    
-    init() {}
+    init() { }
     
     init(id: UUID? = nil, userId: UUID, enableAIMusic: Bool) {
         self.id = id

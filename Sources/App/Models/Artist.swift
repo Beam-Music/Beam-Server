@@ -1,9 +1,3 @@
-//
-//  File.swift
-//  
-//
-//  Created by freed on 9/12/24.
-//
 import Fluent
 import Vapor
 
@@ -14,7 +8,7 @@ final class Artist: Model, Content, @unchecked Sendable {
     var id: UUID?
 
     @Field(key: "name")
-    var name: String
+    var name: String 
 
     @Field(key: "debut_year")
     var debutYear: Int
@@ -27,6 +21,3 @@ final class Artist: Model, Content, @unchecked Sendable {
         self.debutYear = debutYear
     }
 }
-
-
-
