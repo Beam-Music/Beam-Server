@@ -1,40 +1,66 @@
-//
-//  BackfillAiSongSongID.swift
-//  Beam-Music-Server
-//
-//  Created by anonymous on 4/10/25.
-//
-
 import Fluent
 import Vapor
 
 struct BackfillAiSongSongID: AsyncMigration {
-    func prepare(on database: Database) async throws {
-        print("Running migration: BackfillAiSongSongID prepare...")
-        
-        // Use the correct filter syntax for nullable relationships
-        let aiSongs = try await AiSong.query(on: database)
-                                  .filter(\.$song.$id == .null)
-                                  .all()
-        
-        for aiSong in aiSongs {
-            if let matchingSong = try await Song.query(on: database)
-                                      .filter(\.$title == aiSong.title)
-                                      .first() {
-                aiSong.$song.id = matchingSong.id
-                try await aiSong.save(on: database)
-                print("Backfilled song_id for AiSong: \(aiSong.title) with Song ID: \(matchingSong.id!)")
-            } else {
-                print("Warning: Could not find matching Song for AiSong title: \(aiSong.title)")
-            }
+
+    private func getOrCreateAIArtist(on database: Database) async throws -> Artist.IDValue {
+        let artistName = "AI Composer"
+        if let existingArtist = try await Artist.query(on: database)
+            .filter(\.$name == artistName)
+            .first() {
+            return try existingArtist.requireID()
+        } else {
+            let newArtist = Artist(name: artistName, debutYear: 2024)
+            try await newArtist.save(on: database)
+            return try newArtist.requireID()
         }
-        
-        print("Migration BackfillAiSongSongID prepare completed.")
+    }
+
+    func prepare(on database: Database) async throws {
+        let aiSongsToProcess = try await AiSong.query(on: database).all()
+        for aiSong in aiSongsToProcess {
+             if let _ = try await Song.find(aiSong.songId, on: database) {
+                 continue
+             }
+
+            let title = aiSong.fileUrl.split(separator: "/").last?.split(separator: ".").first.map(String.init) ?? "Unknown AI Title \(aiSong.id?.uuidString ?? "")"
+            let genre = "AI Generated"
+            let artistID = try await getOrCreateAIArtist(on: database) 
+            let matchingSong = try await Song.query(on: database)
+                 .filter(\.$title == title)
+                 .filter(\.$artist.$id == artistID)
+                 .first()
+
+             let songIDToLink: UUID
+             if let foundSong = matchingSong {
+                 songIDToLink = try foundSong.requireID()
+                 if foundSong.isAIGenerated != true {
+                     foundSong.isAIGenerated = true
+                     try await foundSong.save(on: database)
+                 }
+             } else {
+                 let newSong = Song(
+                     title: title,
+                     artistID: artistID,
+                     genre: genre,
+                     releaseDate: nil,
+                     duration: nil,
+                     isAIGenerated: true
+                 )
+                 try await newSong.save(on: database)
+                 songIDToLink = try newSong.requireID()
+             }
+
+             aiSong.songId = songIDToLink
+             try await aiSong.update(on: database)
+        }
     }
 
     func revert(on database: Database) async throws {
-        print("Running migration: BackfillAiSongSongID revert...")
-        // Your revert logic here
-        print("Migration BackfillAiSongSongID revert completed.")
+        let artistID = try await getOrCreateAIArtist(on: database)
+        try await Song.query(on: database)
+            .filter(\.$artist.$id == artistID)
+            .filter(\.$isAIGenerated == true)
+            .delete()
     }
 }

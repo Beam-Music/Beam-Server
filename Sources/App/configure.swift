@@ -50,6 +50,8 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(SeedDefaultArtist())
     app.migrations.add(RemoveArtistColumnFromSongs())
     app.migrations.add(SeedAIMusic())
+    app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+
     //    app.http.server.configuration.hostname = "192.168.0.33"
     //    app.http.server.configuration.port = 8080
     app.http.server.configuration.hostname = "0.0.0.0"
@@ -60,6 +62,8 @@ public func configure(_ app: Application) async throws {
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
     app.jwt.signers.use(.hs256(key: "your-secret-key"))
     // MARK: Routes
+    try app.register(collection: AISongController())
+    try app.register(collection: AIPreferenceController())
     try await app.autoMigrate().get()
     try app.autoMigrate().wait()
     try routes(app)
