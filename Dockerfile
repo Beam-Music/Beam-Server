@@ -24,17 +24,19 @@ RUN swift build -c release \
     --static-swift-stdlib \
     -Xlinker -ljemalloc \
     && echo "Build completed, listing build directory:" \
-    && ls -la /build/.build/release
+    && ls -la /build/.build/release \
+    && echo "Build path:" \
+    && swift build --package-path /build -c release --show-bin-path
 
 # Switch to the staging area
 WORKDIR /staging
 
 # Copy main executable to staging area
-RUN BUILD_PATH="/build/.build/release" \
+RUN BUILD_PATH=$(swift build --package-path /build -c release --show-bin-path) \
     && echo "Build path: $BUILD_PATH" \
     && ls -la $BUILD_PATH \
-    && cp "$BUILD_PATH/App" ./app \
-    && chmod +x ./app \
+    && cp "$BUILD_PATH/App" ./App \
+    && chmod +x ./App \
     && echo "Staging directory contents:" \
     && ls -la
 
@@ -71,10 +73,10 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
 RUN useradd --user-group --create-home --system --skel /dev/null --home-dir /app vapor
 
 # Switch to the new home directory
-WORKDIR /app
+WORKDIR /App
 
 # Copy built executable and any staged resources from builder
-COPY --from=build --chown=vapor:vapor /staging /app
+COPY --from=build --chown=vapor:vapor /staging /App
 
 # Provide configuration needed by the built-in crash reporter and some sensible default behaviors.
 ENV SWIFT_BACKTRACE=enable=yes,sanitize=yes,threads=all,images=all,interactive=no,swift-backtrace=./swift-backtrace-static
