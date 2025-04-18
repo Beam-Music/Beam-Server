@@ -16,6 +16,8 @@ WORKDIR /build
 COPY Package.* ./
 RUN swift package resolve
 
+RUN ls -la /app && chmod +x /app/app
+
 # Copy the rest of the source code
 COPY Sources ./Sources
 
