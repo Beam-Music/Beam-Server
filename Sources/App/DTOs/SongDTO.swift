@@ -9,12 +9,12 @@ struct PlayableTrackDTO: Content {
     let duration: Int?
     let artworkUrl: String?
     // TODO: 앨범 아트 URL (필요시 추가 로직)
-
+    
     
     let isAIGenerated: Bool
     let playbackUrl: String?
     let musicKitID: String?
-
+    
     init(song: Song, artist: Artist, aiSong: AiSong?) throws {
         self.id = try song.requireID()
         self.title = song.title
@@ -22,38 +22,32 @@ struct PlayableTrackDTO: Content {
         self.genre = song.genre
         self.duration = song.duration
         self.artworkUrl = nil
-        // TODO: 필요시 MusicKit 등에서 가져오는 로직 추가
-
+        self.musicKitID = nil
+        
         self.isAIGenerated = song.isAIGenerated ?? false
-
+        
         if self.isAIGenerated {
             if let aiSong = aiSong {
-                // AiSong 데이터가 있으면 URL 생성 (Endpoints.baseURL 필요)
-//                self.playbackUrl = Endpoints.baseURL + aiSong.fileUrl // aiSong.fileUrl이 "/"로 시작한다고 가정
-                self.playbackUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-
+                self.playbackUrl = aiSong.fileUrl
             } else {
-                self.playbackUrl = nil // 서버 중단 방지
+                self.playbackUrl = nil
             }
-            self.musicKitID = nil
         } else {
-            self.playbackUrl = nil
-            // Apple Music ID 처리 (현재는 Song UUID 사용 - 실제 구현에 맞게 수정 필요)
-            self.musicKitID = song.id?.uuidString
+            self.playbackUrl = nil 
         }
     }
 }
 
 struct PlaylistSummaryDTO: Content {
-     let id: UUID?
-     let name: String
-     let description: String?
-
-     init(id: UUID?, name: String, description: String? = nil) {
-         self.id = id
-         self.name = name
-         self.description = description
-     }
+    let id: UUID?
+    let name: String
+    let description: String?
+    
+    init(id: UUID?, name: String, description: String? = nil) {
+        self.id = id
+        self.name = name
+        self.description = description
+    }
 }
 
 
