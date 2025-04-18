@@ -35,8 +35,8 @@ WORKDIR /staging
 RUN BUILD_PATH=$(swift build --package-path /build -c release --show-bin-path) \
     && echo "Build path: $BUILD_PATH" \
     && ls -la $BUILD_PATH \
-    && cp "$BUILD_PATH/App" ./App \
-    && chmod +x ./App \
+    && cp "$BUILD_PATH/App" ./app \
+    && chmod +x ./app \
     && echo "Staging directory contents:" \
     && ls -la
 
@@ -88,5 +88,5 @@ USER vapor:vapor
 EXPOSE 8080
 
 # Start the Vapor service when the image is run, default to listening on 8080 in production environment
-ENTRYPOINT ["/app/App"]
+ENTRYPOINT ["/app/app"]
 CMD []
