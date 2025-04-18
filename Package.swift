@@ -38,7 +38,7 @@ let package = Package(
                 .target(name: "App"),
                 .product(name: "XCTVapor", package: "vapor"),
             ],
-            sources: ["."],
+            sources: ["AppTests"],
             swiftSettings: swiftSettings
         )
     ]
