@@ -30,7 +30,6 @@ public func configure(_ app: Application) async throws {
         ), as: .psql)
     }
 
-
     // MARK: Migrations
     app.migrations.add(CreateUser())
     app.migrations.add(RemovePasswordFromUsers())
