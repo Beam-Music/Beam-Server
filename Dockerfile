@@ -27,8 +27,8 @@ RUN swift build -c release \
 # Switch to the staging area
 WORKDIR /staging
 
-# Copy main executable to staging area
-RUN cp "$(swift build --package-path /build -c release --show-bin-path)/App" ./
+# Copy main executable to staging area and rename it to 'app'
+RUN cp "$(swift build --package-path /build -c release --show-bin-path)/App" ./app
 
 # Copy static swift backtracer binary to staging area
 RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
@@ -78,5 +78,5 @@ USER vapor:vapor
 EXPOSE 8080
 
 # Start the Vapor service when the image is run, default to listening on 8080 in production environment
-ENTRYPOINT ["./App"]
+ENTRYPOINT ["./app"]
 CMD ["serve", "--env", "production", "--hostname", "0.0.0.0", "--port", "8080"]
