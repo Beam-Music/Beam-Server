@@ -16,6 +16,9 @@ WORKDIR /build
 # This creates a cached layer that can be reused
 # as long as your Package.swift/Package.resolved
 # files do not change.
+RUN swift build -c release --static-swift-stdlib -Xlinker -ljemalloc
+RUN ls -l /build/.build/release/
+
 COPY ./Package.* ./
 RUN swift package resolve \
         $([ -f ./Package.resolved ] && echo "--force-resolved-versions" || true)
