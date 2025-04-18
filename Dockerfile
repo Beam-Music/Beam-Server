@@ -12,25 +12,17 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
 # Set up a build area
 WORKDIR /build
 
-# First just resolve dependencies.
-# This creates a cached layer that can be reused
-# as long as your Package.swift/Package.resolved
-# files do not change.
-RUN swift build -c release --static-swift-stdlib -Xlinker -ljemalloc
-RUN ls -l /build/.build/release/
+# Copy Package manifest and lock file first to leverage Docker cache
+COPY Package.* ./
+RUN swift package resolve
 
-COPY ./Package.* ./
-RUN swift package resolve \
-        $([ -f ./Package.resolved ] && echo "--force-resolved-versions" || true)
-
-# Copy entire repo into container
-COPY . .
+# Copy the rest of the source code
+COPY Sources ./Sources
 
 # Build everything, with optimizations, with static linking, and using jemalloc
-# N.B.: The static version of jemalloc is incompatible with the static Swift runtime.
 RUN swift build -c release \
-                --static-swift-stdlib \
-                -Xlinker -ljemalloc
+    --static-swift-stdlib \
+    -Xlinker -ljemalloc
 
 # Switch to the staging area
 WORKDIR /staging
@@ -44,8 +36,7 @@ RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
 # Copy resources bundled by SPM to staging area
 RUN find -L "$(swift build --package-path /build -c release --show-bin-path)/" -regex '.*\.resources$' -exec cp -Ra {} ./ \;
 
-# Copy any resources from the public directory and views directory if the directories exist
-# Ensure that by default, neither the directory nor any of its contents are writable.
+# Copy any resources from the public and resources directories if they exist
 RUN [ -d /build/Public ] && { mv /build/Public ./Public && chmod -R a-w ./Public; } || true
 RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w ./Resources; } || true
 
