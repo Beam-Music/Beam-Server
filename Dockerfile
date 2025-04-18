@@ -16,8 +16,8 @@ WORKDIR /build
 COPY Package.* ./
 RUN swift package resolve
 
-# Copy the rest of the source code
-COPY Sources ./Sources
+# Copy the entire project with correct structure
+COPY . ./
 
 # Build everything, with optimizations, with static linking, and using jemalloc
 RUN swift build -c release \
