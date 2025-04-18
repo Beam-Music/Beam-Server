@@ -20,7 +20,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "app",
+            name: "App",
             dependencies: [
                 .product(name: "Fluent", package: "fluent"),
                 .product(name: "FluentPostgresDriver", package: "fluent-postgres-driver"),
@@ -30,6 +30,7 @@ let package = Package(
                 .product(name: "JWT", package: "jwt"),
                 .product(name: "SendGrid", package: "sendgrid")
             ],
+            path: "Sources/App",
             swiftSettings: swiftSettings
         ),
         .testTarget(
