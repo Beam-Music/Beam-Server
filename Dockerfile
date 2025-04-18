@@ -16,8 +16,6 @@ WORKDIR /build
 COPY Package.* ./
 RUN swift package resolve
 
-RUN ls -la /app && chmod +x /app/app
-
 # Copy the rest of the source code
 COPY Sources ./Sources
 
@@ -52,6 +50,9 @@ RUN find -L "$(swift build --package-path /build -c release --show-bin-path)/" -
 RUN [ -d /build/Public ] && { mv /build/Public ./Public && chmod -R a-w ./Public; } || true
 RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w ./Resources; } || true
 
+# Create simple startup script for reliability
+RUN echo '#!/bin/sh\nexec /app/app "$@"' > ./start.sh && chmod +x ./start.sh
+
 # ================================
 # Run image
 # ================================
@@ -65,10 +66,6 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
       libjemalloc2 \
       ca-certificates \
       tzdata \
-# If your app or its dependencies import FoundationNetworking, also install `libcurl4`.
-      # libcurl4 \
-# If your app or its dependencies import FoundationXML, also install `libxml2`.
-      # libxml2 \
     && rm -r /var/lib/apt/lists/*
 
 # Create a vapor user and group with /app as its home directory
@@ -80,6 +77,9 @@ WORKDIR /app
 # Copy built executable and any staged resources from builder
 COPY --from=build --chown=vapor:vapor /staging /app
 
+# Verify the app exists and has proper permissions
+RUN ls -la /app && chmod +x /app/app /app/start.sh
+
 # Provide configuration needed by the built-in crash reporter and some sensible default behaviors.
 ENV SWIFT_BACKTRACE=enable=yes,sanitize=yes,threads=all,images=all,interactive=no,swift-backtrace=./swift-backtrace-static
 
@@ -90,5 +90,5 @@ USER vapor:vapor
 EXPOSE 8080
 
 # Start the Vapor service when the image is run, default to listening on 8080 in production environment
-ENTRYPOINT ["/app/app"]
+ENTRYPOINT ["/app/start.sh"]
 CMD []
