@@ -27,8 +27,12 @@ RUN swift build -c release \
 # Switch to the staging area
 WORKDIR /staging
 
-# Copy main executable to staging area and rename it to 'app'
-RUN cp "$(swift build --package-path /build -c release --show-bin-path)/App" ./app
+# Get the build path and copy the executable
+RUN BUILD_PATH=$(swift build --package-path /build -c release --show-bin-path) \
+    && echo "Build path: $BUILD_PATH" \
+    && ls -la $BUILD_PATH \
+    && cp "$BUILD_PATH/App" ./app \
+    && chmod +x ./app
 
 # Copy static swift backtracer binary to staging area
 RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
