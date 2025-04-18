@@ -22,17 +22,21 @@ COPY Sources ./Sources
 # Build everything, with optimizations, with static linking, and using jemalloc
 RUN swift build -c release \
     --static-swift-stdlib \
-    -Xlinker -ljemalloc
+    -Xlinker -ljemalloc \
+    && echo "Build completed, listing build directory:" \
+    && ls -la /build/.build/release
 
 # Switch to the staging area
 WORKDIR /staging
 
-# Get the build path and copy the executable
-RUN BUILD_PATH=$(swift build --package-path /build -c release --show-bin-path) \
+# Copy main executable to staging area
+RUN BUILD_PATH="/build/.build/release" \
     && echo "Build path: $BUILD_PATH" \
     && ls -la $BUILD_PATH \
     && cp "$BUILD_PATH/App" ./app \
-    && chmod +x ./app
+    && chmod +x ./app \
+    && echo "Staging directory contents:" \
+    && ls -la
 
 # Copy static swift backtracer binary to staging area
 RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
