@@ -46,6 +46,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
     app.migrations.add(BackfillAiSongSongID())
+    app.migrations.add(AddCreatedAtColumnToAiSongs())
     app.migrations.add(SeedDefaultArtist())
     app.migrations.add(RemoveArtistColumnFromSongs())
     app.migrations.add(SeedAIMusic())
