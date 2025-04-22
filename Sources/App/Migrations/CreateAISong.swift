@@ -10,7 +10,7 @@ import Fluent
 struct CreateAISong: AsyncMigration {
     func prepare(on database: Database) async throws {
         try await database.schema("ai_songs")
-            .id() // 기본적으로 UUID 타입의 'id' 컬럼 생성
+            .id()
             .field("title", .string, .required)
             .field("genre", .string)
             .field("release_date", .date)
