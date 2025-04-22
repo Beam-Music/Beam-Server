@@ -39,6 +39,7 @@ public func configure(_ app: Application) async throws {
 //    app.migrations.add(AddIsVerifiedToUser())
     app.migrations.add(CreateAISong())
     app.migrations.add(AddCreatedAtColumnToAiSongs())
+    app.migrations.add(AddIsAIGeneratedToSongs())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
