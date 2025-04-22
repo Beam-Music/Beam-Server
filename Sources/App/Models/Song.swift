@@ -101,7 +101,7 @@ final class AiSong: Model, Content {
 
     init() { }
 
-    init(id: UUID? = nil, songId: UUID, filePath: String) {
+    init(id: UUID? = nil, songId: UUID, fileUrl: String) {
         self.id = id
         self.songId = songId
         self.fileUrl = fileUrl
