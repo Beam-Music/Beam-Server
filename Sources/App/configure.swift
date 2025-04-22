@@ -37,6 +37,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(RemovePasswordFromUsers())
 //    app.migrations.add(AddPasswordHashToUser())
 //    app.migrations.add(AddIsVerifiedToUser())
+//    app.migrations.add(CreateAISong())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
@@ -44,7 +45,6 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserPlaylist())
     app.migrations.add(CreatePlaylistSong())
     app.migrations.add(CreateVerification())
-    app.migrations.add(AddSongIDToAiSongs())
     app.migrations.add(BackfillAiSongSongID())
     app.migrations.add(SeedDefaultArtist())
     app.migrations.add(RemoveArtistColumnFromSongs())
@@ -64,6 +64,5 @@ public func configure(_ app: Application) async throws {
     try app.register(collection: AISongController())
     try app.register(collection: AIPreferenceController())
     try await app.autoMigrate().get()
-    try app.autoMigrate().wait()
     try routes(app)
 }
