@@ -37,7 +37,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(RemovePasswordFromUsers())
 //    app.migrations.add(AddPasswordHashToUser())
 //    app.migrations.add(AddIsVerifiedToUser())
-//    app.migrations.add(CreateAISong())
+    app.migrations.add(CreateAISong())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateSong())
     app.migrations.add(CreateListeningHistory())
