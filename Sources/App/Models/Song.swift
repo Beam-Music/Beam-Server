@@ -88,8 +88,8 @@ final class AiSong: Model, Content {
     @Field(key: "song_id")
     var songId: UUID
 
-    @Field(key: "file_path")
-    var filePath: String
+    @Field(key: "file_url")
+    var fileUrl: String
 
     @Timestamp(key: "created_at", on: .create) // @Field 대신 @Timestamp 사용 권장
     var createdAt: Date?
@@ -104,7 +104,7 @@ final class AiSong: Model, Content {
     init(id: UUID? = nil, songId: UUID, filePath: String) {
         self.id = id
         self.songId = songId
-        self.filePath = filePath
+        self.fileUrl = fileUrl
     }
 }
 
