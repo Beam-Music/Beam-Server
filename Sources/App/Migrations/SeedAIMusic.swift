@@ -27,7 +27,9 @@ struct SeedAIMusic: AsyncMigration {
                 .filter(\.$title == data.title)
                 .filter(\.$artist.$id == artistID)
                 .first()
+            
             if let foundSong = existingSong {
+                // Ensure isAIGenerated is true if found
                 if foundSong.isAIGenerated != true {
                     foundSong.isAIGenerated = true
                     try await foundSong.save(on: database)
@@ -49,23 +51,42 @@ struct SeedAIMusic: AsyncMigration {
         
         var aiSongsToSave: [AiSong] = []
         for song in createdSongs {
+            guard let songIDValue = song.id else {
+                print("Error: Song object \(song.title) is missing ID after save. Skipping AiSong creation.")
+                continue
+            }
+            
             let fileName = song.title
             let fileExtension = ".mp3"
             let filePath = "/ai-songs/\(fileName)\(fileExtension)"
             
             let existingAiSong = try await AiSong.query(on: database)
-                .filter(\.$songId == song.requireID())
+                .filter(\.$song.$id == songIDValue)
                 .first()
             
             if let actualExistingAiSong = existingAiSong {
-                if actualExistingAiSong.fileUrl != filePath {
+                if actualExistingAiSong.fileUrl != filePath ||
+                    actualExistingAiSong.title != song.title ||
+                    actualExistingAiSong.duration != (song.duration ?? 0) {
+                    
                     actualExistingAiSong.fileUrl = filePath
+                    actualExistingAiSong.title = song.title
+                    actualExistingAiSong.genre = song.genre
+                    actualExistingAiSong.releaseDate = song.releaseDate
+                    actualExistingAiSong.duration = song.duration ?? 0
+                    actualExistingAiSong.isAiGenerated = song.isAIGenerated ?? true
+                    
                     try await actualExistingAiSong.update(on: database)
                 }
             } else {
                 let aiSong = AiSong(
-                    songId: try song.requireID(),
-                    fileUrl: filePath
+                    title: song.title,
+                    genre: song.genre,
+                    releaseDate: song.releaseDate,
+                    duration: song.duration ?? 0,
+                    isAiGenerated: song.isAIGenerated ?? true,
+                    fileUrl: filePath,
+                    songId: songIDValue
                 )
                 aiSongsToSave.append(aiSong)
             }
@@ -73,12 +94,13 @@ struct SeedAIMusic: AsyncMigration {
         
         if !aiSongsToSave.isEmpty {
             try await withThrowingTaskGroup(of: Void.self) { group in
-                for aiSong in aiSongsToSave {
-                    group.addTask { try await aiSong.save(on: database) }
+                for aiSongInstance in aiSongsToSave {
+                    group.addTask {
+                        try await aiSongInstance.save(on: database)
+                    }
                 }
                 try await group.waitForAll()
             }
-        } else {
         }
         
         let targetPlaylistName = "AI Generated Hits"
@@ -99,7 +121,6 @@ struct SeedAIMusic: AsyncMigration {
                     let isAttached = try await targetPlaylist.$songs.isAttached(to: song, on: database)
                     if !isAttached {
                         try await targetPlaylist.$songs.attach(song, on: database)
-                    } else {
                     }
                 }
             }
@@ -112,31 +133,35 @@ struct SeedAIMusic: AsyncMigration {
         let playlistName = "AI Generated Hits"
         var songIDsToDelete: [UUID] = []
         
-        if let artist = try await Artist.query(on: database).filter(\.$name == artistName).first() {
-            songIDsToDelete = try await Song.query(on: database)
-                .filter(\.$artist.$id == artist.requireID())
-                .filter(\.$isAIGenerated == true)
-                .all()
-                .compactMap { $0.id }
+        guard let artist = try await Artist.query(on: database).filter(\.$name == artistName).first() else {
+            return
         }
+        let artistID = try artist.requireID()
         
-        if !songIDsToDelete.isEmpty {
-            try await PlaylistSong.query(on: database)
-                .filter(\.$song.$id ~~ songIDsToDelete)
-                .delete()
-            try await AiSong.query(on: database)
-                .filter(\.$songId ~~ songIDsToDelete)
-                .delete()
-            
-            try await Song.query(on: database)
-                .filter(\.$id ~~ songIDsToDelete) // $id 사용
-                .delete()
+        songIDsToDelete = try await Song.query(on: database)
+            .filter(\.$artist.$id == artistID)
+            .filter(\.$title ~~ ["sample1", "sample2"])
+            .all()
+            .compactMap { $0.id }
+        
+        if songIDsToDelete.isEmpty {
         } else {
-            print("Seeder: No AI Song records found to delete for artist '\(artistName)'.")
+            if let playlist = try await RecommendPlaylist.query(on: database).filter(\.$name == playlistName).first() {
+                let songsToDetach = try await Song.query(on: database).filter(\.$id ~~ songIDsToDelete).all()
+                try await playlist.$songs.detach(songsToDetach, on: database)
+            }
+            
+            let aiSongsDeleteQuery = AiSong.query(on: database)
+                .filter(\.$song.$id ~~ songIDsToDelete) // Use \.$song.$id syntax
+            try await aiSongsDeleteQuery.delete(force: true) // Perform deletion
+            
+            let songsDeleted = try await Song.query(on: database)
+                .filter(\.$id ~~ songIDsToDelete)
+                .delete(force: true)
         }
         
-        try await RecommendPlaylist.query(on: database)
+        let playlistDeleteQuery = RecommendPlaylist.query(on: database)
             .filter(\.$name == playlistName)
-            .delete()
+        try await playlistDeleteQuery.delete(force: true) // Perform deletion
     }
 }
