@@ -17,6 +17,7 @@ struct CreateAISong: AsyncMigration {
             .field("duration", .int, .required)
             .field("is_ai_generated", .bool, .required)
             .field("file_path", .string, .required)
+            .field("song_id", .uuid, .references("songs", "id"))
             .create()
     }
 
