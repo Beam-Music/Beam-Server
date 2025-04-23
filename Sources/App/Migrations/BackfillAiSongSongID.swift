@@ -2,7 +2,7 @@ import Fluent
 import Vapor
 
 struct BackfillAiSongSongID: AsyncMigration {
-
+    
     private func getOrCreateAIArtist(on database: Database) async throws -> Artist.IDValue {
         let artistName = "AI Composer"
         if let existingArtist = try await Artist.query(on: database)
@@ -15,17 +15,19 @@ struct BackfillAiSongSongID: AsyncMigration {
             return try newArtist.requireID()
         }
     }
-
+    
     func prepare(on database: Database) async throws {
         let aiSongsToProcess = try await AiSong.query(on: database).all()
+        
         for aiSong in aiSongsToProcess {
-            if let _ = try await Song.find(aiSong.songId, on: database) {
+            if let existingLinkedSong = try await Song.find(aiSong.$song.id, on: database) {
                 continue
             }
             
             let title = aiSong.fileUrl.split(separator: "/").last?.split(separator: ".").first.map(String.init) ?? "Unknown AI Title \(aiSong.id?.uuidString ?? "")"
             let genre = "AI Generated"
             let artistID = try await getOrCreateAIArtist(on: database)
+            
             let matchingSong = try await Song.query(on: database)
                 .filter(\.$title == title)
                 .filter(\.$artist.$id == artistID)
@@ -44,23 +46,27 @@ struct BackfillAiSongSongID: AsyncMigration {
                     artistID: artistID,
                     genre: genre,
                     releaseDate: nil,
-                    duration: nil,
+                    duration: aiSong.duration,
                     isAIGenerated: true
                 )
                 try await newSong.save(on: database)
                 songIDToLink = try newSong.requireID()
             }
             
-            aiSong.songId = songIDToLink
-            try await aiSong.update(on: database)
+            aiSong.$song.id = songIDToLink
+            try await aiSong.update(on: database) // Save the change to aiSong
         }
     }
-
+    
     func revert(on database: Database) async throws {
-        let artistID = try await getOrCreateAIArtist(on: database)
-        try await Song.query(on: database)
+        guard let artist = try await Artist.query(on: database).filter(\.$name == "AI Composer").first(),
+              let artistID = artist.id else {
+            return
+        }
+        
+        let songsToDeleteQuery = Song.query(on: database)
             .filter(\.$artist.$id == artistID)
             .filter(\.$isAIGenerated == true)
-            .delete()
     }
 }
+
