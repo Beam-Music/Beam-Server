@@ -12,53 +12,81 @@ struct RecommendPlaylistController: RouteCollection {
         }
     }
 
+    
     func index(req: Request) async throws -> [PlaylistSummaryDTO] {
         let playlists = try await RecommendPlaylist.query(on: req.db).all()
-        return playlists.map { PlaylistSummaryDTO(id: $0.id, name: $0.name, description: $0.description) }
+        return playlists.map { playlist in
+            PlaylistSummaryDTO(id: playlist.id, name: playlist.name, description: playlist.description)
+        }
     }
 
     func getSongs(req: Request) async throws -> [PlayableTrackDTO] {
         guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
-            throw Abort(.badRequest)
+            throw Abort(.badRequest, reason: "Invalid playlist ID format.")
         }
 
-        guard let playlist = try await RecommendPlaylist.query(on: req.db)
+        let playlistQuery = RecommendPlaylist.query(on: req.db)
             .filter(\.$id == playlistID)
-            .with(\.$songs)
-            .first() else {
-            throw Abort(.notFound)
+            .with(\.$songs) { songQuery in
+                songQuery.with(\.$artist)
+            }
+
+        let optionalPlaylist = try await playlistQuery.first()
+
+        guard let playlist = optionalPlaylist else {
+            throw Abort(.notFound, reason: "Playlist with ID \(playlistID) not found.")
         }
 
         let songs = playlist.songs
-        guard !songs.isEmpty else { return [] }
-
-        try await songs.loadArtists(on: req.db)
+        guard !songs.isEmpty else {
+            return []
+        }
 
         let songIDs = try songs.map { try $0.requireID() }
-        let aiSongs = try await AiSong.query(on: req.db)
-            .filter(\.$songId ~~ songIDs)
-            .all()
-        let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongs.map { ($0.songId, $0) })
 
+        let aiSongs = try await AiSong.query(on: req.db)
+            .filter(\.$song.$id ~~ songIDs)
+            .all()
+
+        
+        let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongs.map { ($0.$song.id, $0) })
+
+        
         return try songs.map { song -> PlayableTrackDTO in
+            // Artist was eagerly loaded, so it should be available.
             guard let artist = song.$artist.value else {
-                throw Abort(.internalServerError, reason: "Artist not loaded for song \(try song.requireID())")
+                // This should ideally not happen if eager loading succeeded.
+                throw Abort(.internalServerError, reason: "Artist data unexpectedly missing for song \(try song.requireID()).")
             }
+            // Find the corresponding AiSong (if it exists) from the map.
             let correspondingAiSong = aiSongMap[try song.requireID()]
+
+            // Create the DTO. Ensure PlayableTrackDTO initializer is correct.
+            // Check if PlayableTrackDTO init throws or if any access here causes generic errors.
             return try PlayableTrackDTO(song: song, artist: artist, aiSong: correspondingAiSong)
         }
     }
 
+    // POST /recommend-playlists
+    // Creates a new recommendation playlist.
     func create(req: Request) async throws -> RecommendPlaylist {
-        let playlist = try req.content.decode(RecommendPlaylist.self)
-        try await playlist.save(on: req.db)
-        return playlist
+        // Decode the playlist data from the request body.
+        let playlistData = try req.content.decode(RecommendPlaylist.self) // Assumes request body matches RecommendPlaylist structure
+        // Save the new playlist to the database.
+        try await playlistData.save(on: req.db)
+        return playlistData
     }
 
+    // GET /recommend-playlists/:playlistID
+    // Retrieves a specific recommendation playlist by its ID.
     func get(req: Request) async throws -> RecommendPlaylist {
-        guard let playlistID = req.parameters.get("playlistID", as: UUID.self),
-              let playlist = try await RecommendPlaylist.find(playlistID, on: req.db) else {
-            throw Abort(.notFound)
+        // Get playlist ID from parameters.
+        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
+             throw Abort(.badRequest, reason: "Invalid playlist ID format.")
+         }
+        // Find the playlist by ID.
+        guard let playlist = try await RecommendPlaylist.find(playlistID, on: req.db) else {
+            throw Abort(.notFound, reason: "Playlist with ID \(playlistID) not found.")
         }
         return playlist
     }
