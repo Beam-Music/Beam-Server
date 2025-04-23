@@ -57,6 +57,7 @@ public func configure(_ app: Application) async throws {
     }
     
     app.migrations.add(CreateUser())
+    app.migrations.add(AddTestUser())
     app.migrations.add(AddEmailAndPasswordToUser())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateRecommendPlaylist())
