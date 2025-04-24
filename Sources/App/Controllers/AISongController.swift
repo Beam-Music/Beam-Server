@@ -86,7 +86,7 @@ struct AISongController: RouteCollection {
         try await newSong.save(on: req.db)
         let newSongID = try newSong.requireID()
         
-        let fileUrl = "https://soundcloud.com/beyooyoqhphl/duapila-killbill"
+        let fileUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
         
         let aiSong = AiSong(
             title: newSong.title,
