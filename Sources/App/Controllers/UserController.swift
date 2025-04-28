@@ -23,7 +23,7 @@ struct UserPayload: JWTPayload, Authenticatable {
 struct UserController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let users = routes.grouped("api", "users")
-        let tokenProtected = users.grouped(UserToken.authenticator())
+        let tokenProtected = users.grouped(JWTMiddleware())
         
         users.post("register", use: register)
         users.post("verify", use: verifyEmail)
