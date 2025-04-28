@@ -184,9 +184,15 @@ struct AISongController: RouteCollection {
                     nextTrack = firstAITrack
                     print("No AI track found in remaining songs, starting from first AI track: \(firstAITrack.title)")
                 } else {
-                    // If no AI tracks at all, start from beginning
-                    nextTrack = songs[0]
-                    print("No AI tracks in playlist, starting from beginning: \(songs[0].title)")
+                    // If no AI tracks at all, find first non-AI track
+                    if let firstNonAITrack = songs.first(where: { $0.isAIGenerated == false }) {
+                        nextTrack = firstNonAITrack
+                        print("No AI tracks in playlist, switching to first non-AI track: \(firstNonAITrack.title)")
+                    } else {
+                        // If no tracks at all, start from beginning
+                        nextTrack = songs[0]
+                        print("No tracks in playlist, starting from beginning: \(songs[0].title)")
+                    }
                 }
             }
         } else {
@@ -203,9 +209,15 @@ struct AISongController: RouteCollection {
                     nextTrack = firstNonAITrack
                     print("No non-AI track found in remaining songs, starting from first non-AI track: \(firstNonAITrack.title)")
                 } else {
-                    // If no non-AI tracks at all, start from beginning
-                    nextTrack = songs[0]
-                    print("No non-AI tracks in playlist, starting from beginning: \(songs[0].title)")
+                    // If no non-AI tracks at all, find first AI track
+                    if let firstAITrack = songs.first(where: { $0.isAIGenerated == true }) {
+                        nextTrack = firstAITrack
+                        print("No non-AI tracks in playlist, switching to first AI track: \(firstAITrack.title)")
+                    } else {
+                        // If no tracks at all, start from beginning
+                        nextTrack = songs[0]
+                        print("No tracks in playlist, starting from beginning: \(songs[0].title)")
+                    }
                 }
             }
         }
