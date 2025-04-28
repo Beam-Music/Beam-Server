@@ -28,6 +28,7 @@ struct AISongController: RouteCollection {
         aiSongs.get("playable", use: getPlayableAISongs)
         aiSongs.post("register", use: registerNewAISongHandler)
         aiSongs.get(":aiSongID", use: getHandlerAsync)
+        aiSongs.get("next-track", use: getNextTrack)
         // aiSongs.post(use: createHandlerAsync)
     }
     
@@ -121,6 +122,86 @@ struct AISongController: RouteCollection {
         }
         
         return try await aiSong.loadSongDetails(on: req.db)
+    }
+    
+    func getNextTrack(_ req: Request) async throws -> PlayableTrackDTO {
+        let currentTrackID = try req.query.get(UUID.self, at: "currentTrackID")
+        let isAIMusicEnabled = try req.query.get(Bool.self, at: "isAIMusicEnabled")
+        
+        print("Getting next track for currentTrackID: \(currentTrackID), isAIMusicEnabled: \(isAIMusicEnabled)")
+        
+        // Get current track
+        guard let currentTrack = try await Song.find(currentTrackID, on: req.db) else {
+            throw Abort(.notFound, reason: "Current track not found")
+        }
+        
+        print("Current track: \(currentTrack.title), isAIGenerated: \(String(describing: currentTrack.isAIGenerated))")
+        
+        // Get all songs from the same playlist
+        let playlistQuery = UserPlaylist.query(on: req.db)
+            .filter(\.$songs.$id == currentTrackID)
+            .with(\.$songs) { songBuilder in
+                songBuilder.with(\.$artist)
+            }
+        
+        guard let playlist = try await playlistQuery.first() else {
+            throw Abort(.notFound, reason: "Playlist not found")
+        }
+        
+        let songs = playlist.songs
+        guard !songs.isEmpty else {
+            throw Abort(.notFound, reason: "No songs in playlist")
+        }
+        
+        print("Total songs in playlist: \(songs.count)")
+        
+        // Find current track index
+        guard let currentIndex = songs.firstIndex(where: { try $0.requireID() == currentTrackID }) else {
+            throw Abort(.notFound, reason: "Current track not found in playlist")
+        }
+        
+        print("Current track index: \(currentIndex)")
+        
+        // Get next track based on AI music preference
+        let nextTrack: Song
+        if isAIMusicEnabled {
+            // Find next AI track
+            let remainingSongs = Array(songs[(currentIndex + 1)...] + songs[..<currentIndex])
+            print("Looking for next AI track in \(remainingSongs.count) remaining songs")
+            if let nextAITrack = remainingSongs.first(where: { $0.isAIGenerated == true }) {
+                nextTrack = nextAITrack
+                print("Found next AI track: \(nextAITrack.title)")
+            } else {
+                // If no AI track found, start from beginning
+                nextTrack = songs[0]
+                print("No AI track found, starting from beginning: \(songs[0].title)")
+            }
+        } else {
+            // Find next non-AI track (explicitly check for false)
+            let remainingSongs = Array(songs[(currentIndex + 1)...] + songs[..<currentIndex])
+            print("Looking for next non-AI track in \(remainingSongs.count) remaining songs")
+            if let nextNonAITrack = remainingSongs.first(where: { $0.isAIGenerated == false }) {
+                nextTrack = nextNonAITrack
+                print("Found next non-AI track: \(nextNonAITrack.title)")
+            } else {
+                // If no non-AI track found, start from beginning
+                nextTrack = songs[0]
+                print("No non-AI track found, starting from beginning: \(songs[0].title)")
+            }
+        }
+        
+        // Get artist and AI song details
+        guard let artist = nextTrack.$artist.value else {
+            throw Abort(.internalServerError, reason: "Artist not found for next track")
+        }
+        
+        let aiSong = try await AiSong.query(on: req.db)
+            .filter(\.$song.$id == try nextTrack.requireID())
+            .first()
+        
+        print("Returning next track: \(nextTrack.title), isAIGenerated: \(String(describing: nextTrack.isAIGenerated))")
+        
+        return try PlayableTrackDTO(song: nextTrack, artist: artist, aiSong: aiSong)
     }
     
     func createHandlerAsync(_ req: Request) async throws -> AiSong {
