@@ -32,6 +32,7 @@ struct AISongController: RouteCollection {
         // aiSongs.post(use: createHandlerAsync)
     }
     
+    @Sendable
     func getPlayableAISongs(_ req: Request) async throws -> [PlayableTrackDTO] {
         let aiGeneratedSongs = try await Song.query(on: req.db)
             .filter(\.$isAIGenerated == true)
@@ -58,6 +59,7 @@ struct AISongController: RouteCollection {
         }
     }
     
+    @Sendable
     private func getOrCreateArtist(named name: String, on database: Database) async throws -> Artist.IDValue {
         if let existingArtist = try await Artist.query(on: database)
             .filter(\.$name == name)
@@ -71,6 +73,7 @@ struct AISongController: RouteCollection {
         }
     }
     
+    @Sendable
     func registerNewAISongHandler(_ req: Request) async throws -> Song {
         let input = try req.content.decode(RegisterAISongRequest.self)
         let artistName = "AI Composer"
@@ -112,6 +115,7 @@ struct AISongController: RouteCollection {
         return newSong
     }
     
+    @Sendable
     func getHandlerAsync(_ req: Request) async throws -> AiSong {
         guard let aiSongID = req.parameters.get("aiSongID", as: UUID.self) else {
             throw Abort(.badRequest, reason: "Invalid AI song ID format")
@@ -124,6 +128,7 @@ struct AISongController: RouteCollection {
         return try await aiSong.loadSongDetails(on: req.db)
     }
     
+    @Sendable
     func getNextTrack(_ req: Request) async throws -> PlayableTrackDTO {
         let currentTrackID = try req.query.get(UUID.self, at: "currentTrackID")
         let isAIMusicEnabled = try req.query.get(Bool.self, at: "isAIMusicEnabled")
@@ -157,7 +162,7 @@ struct AISongController: RouteCollection {
         print("Total songs in playlist: \(songs.count)")
         
         // Find current track index
-        guard let currentIndex = songs.firstIndex(where: { try $0.requireID() == currentTrackID }) else {
+        guard let currentIndex = try songs.firstIndex(where: { try $0.requireID() == currentTrackID }) else {
             throw Abort(.notFound, reason: "Current track not found in playlist")
         }
         
@@ -206,6 +211,7 @@ struct AISongController: RouteCollection {
         return try PlayableTrackDTO(song: nextTrack, artist: artist, aiSong: aiSong)
     }
     
+    @Sendable
     func createHandlerAsync(_ req: Request) async throws -> AiSong {
         let input = try req.content.decode(AiSongInput.self)
         
