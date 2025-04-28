@@ -218,9 +218,11 @@ struct AISongController: RouteCollection {
     
     private func createPlayableTrackDTO(from song: Song, on db: Database) async throws -> PlayableTrackDTO {
         let songID = try song.requireID()
-        let artist = try await song.$artist.get(on: db)
         
-        guard let artist = artist else {
+        // Load the artist relationship
+        try await song.$artist.load(on: db)
+        
+        guard let artist = song.$artist.value else {
             throw Abort(.internalServerError, reason: "Artist not found for song")
         }
         
