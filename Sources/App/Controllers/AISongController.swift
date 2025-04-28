@@ -160,6 +160,8 @@ struct AISongController: RouteCollection {
         }
         
         print("Total songs in playlist: \(songs.count)")
+        print("AI songs count: \(songs.filter { $0.isAIGenerated }.count)")
+        print("Non-AI songs count: \(songs.filter { !$0.isAIGenerated }.count)")
         
         // Find current track index
         guard let currentIndex = try songs.firstIndex(where: { try $0.requireID() == currentTrackID }) else {
@@ -179,20 +181,14 @@ struct AISongController: RouteCollection {
                 nextTrack = nextAITrack
                 print("Found next AI track: \(nextAITrack.title)")
             } else {
-                // If no AI track found, find first AI track in the entire playlist
-                if let firstAITrack = songs.first(where: { $0.isAIGenerated == true }) {
-                    nextTrack = firstAITrack
-                    print("No AI track found in remaining songs, starting from first AI track: \(firstAITrack.title)")
+                // If no AI track found, find first non-AI track
+                if let firstNonAITrack = songs.first(where: { $0.isAIGenerated == false }) {
+                    nextTrack = firstNonAITrack
+                    print("No AI track found in remaining songs, switching to first non-AI track: \(firstNonAITrack.title)")
                 } else {
-                    // If no AI tracks at all, find first non-AI track
-                    if let firstNonAITrack = songs.first(where: { $0.isAIGenerated == false }) {
-                        nextTrack = firstNonAITrack
-                        print("No AI tracks in playlist, switching to first non-AI track: \(firstNonAITrack.title)")
-                    } else {
-                        // If no tracks at all, start from beginning
-                        nextTrack = songs[0]
-                        print("No tracks in playlist, starting from beginning: \(songs[0].title)")
-                    }
+                    // If no non-AI tracks at all, start from beginning
+                    nextTrack = songs[0]
+                    print("No non-AI tracks in playlist, starting from beginning: \(songs[0].title)")
                 }
             }
         } else {
