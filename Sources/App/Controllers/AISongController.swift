@@ -160,8 +160,8 @@ struct AISongController: RouteCollection {
         }
         
         print("Total songs in playlist: \(songs.count)")
-        print("AI songs count: \(songs.filter { $0.isAIGenerated }.count)")
-        print("Non-AI songs count: \(songs.filter { !$0.isAIGenerated }.count)")
+        print("AI songs count: \(songs.filter { $0.isAIGenerated ?? false }.count)")
+        print("Non-AI songs count: \(songs.filter { !($0.isAIGenerated ?? false) }.count)")
         
         // Find current track index
         guard let currentIndex = try songs.firstIndex(where: { try $0.requireID() == currentTrackID }) else {

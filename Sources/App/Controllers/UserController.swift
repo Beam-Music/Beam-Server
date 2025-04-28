@@ -22,18 +22,20 @@ struct UserPayload: JWTPayload, Authenticatable {
 
 struct UserController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let users = routes.grouped("users")
+        let users = routes.grouped("api", "users")
+        let tokenProtected = users.grouped(UserToken.authenticator())
+        
         users.post("register", use: register)
         users.post("verify", use: verifyEmail)
         users.post("login", use: login)
         
-        let tokenProtected = users.grouped(JWTMiddleware())
         tokenProtected.get(":userID", use: get)
         tokenProtected.put(":userID", use: update)
         tokenProtected.delete(":userID", use: delete)
     }
 
     // MARK: - Registration
+    @Sendable
     func register(req: Request) async throws -> HTTPStatus {
         let registerRequest = try req.content.decode(RegisterRequest.self)
         
@@ -75,6 +77,7 @@ struct UserController: RouteCollection {
     }
 
     // MARK: - Verify Email
+    @Sendable
     func verifyEmail(req: Request) async throws -> HTTPStatus {
         let verifyRequest = try req.content.decode(VerifyRequest.self)
         
@@ -101,6 +104,7 @@ struct UserController: RouteCollection {
     }
 
     // MARK: - Login
+    @Sendable
     func login(req: Request) async throws -> TokenResponse {
         let loginRequest = try req.content.decode(LoginRequest.self)
 
@@ -123,6 +127,7 @@ struct UserController: RouteCollection {
     }
 
     // MARK: - Get User by ID
+    @Sendable
     func get(req: Request) async throws -> User {
         let payload = try req.auth.require(UserPayload.self)
         
@@ -136,6 +141,7 @@ struct UserController: RouteCollection {
     }
 
     // MARK: - Update User by ID
+    @Sendable
     func update(req: Request) async throws -> User {
         guard let user = try await User.find(req.parameters.get("userID"), on: req.db) else {
             throw Abort(.notFound)
@@ -148,6 +154,7 @@ struct UserController: RouteCollection {
     }
 
     // MARK: - Delete User by ID
+    @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
         guard let user = try await User.find(req.parameters.get("userID"), on: req.db) else {
             throw Abort(.notFound)

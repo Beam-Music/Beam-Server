@@ -9,6 +9,7 @@ struct AIPreferenceController: RouteCollection {
         aiPreferences.put(":userId", use: updateHandler)
     }
     
+    @Sendable
     func getHandler(_ req: Request) throws -> EventLoopFuture<AIPreference> {
         guard let userIdString = req.parameters.get("userId"),
               let userId = UUID(uuidString: userIdString) else {
@@ -23,6 +24,7 @@ struct AIPreferenceController: RouteCollection {
             .unwrap(or: Abort(.notFound, reason: "AI preference not found for user"))
     }
     
+    @Sendable
     func updateHandler(_ req: Request) throws -> EventLoopFuture<AIPreference> {
         guard let userIdString = req.parameters.get("userId"),
               let userId = UUID(uuidString: userIdString) else {

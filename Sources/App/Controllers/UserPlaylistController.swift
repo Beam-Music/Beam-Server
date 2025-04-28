@@ -30,6 +30,7 @@ struct UserPlaylistController: RouteCollection {
         return user
     }
 
+    @Sendable
     func index(req: Request) async throws -> [PlaylistSummaryDTO] {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -39,6 +40,7 @@ struct UserPlaylistController: RouteCollection {
         return playlists.map { PlaylistSummaryDTO(id: $0.id, name: $0.name) }
     }
 
+    @Sendable
     func create(req: Request) async throws -> UserPlaylist {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -48,6 +50,7 @@ struct UserPlaylistController: RouteCollection {
         return playlist
     }
 
+    @Sendable
     func get(req: Request) async throws -> UserPlaylist {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -63,6 +66,7 @@ struct UserPlaylistController: RouteCollection {
         return playlist
     }
 
+    @Sendable
     func update(req: Request) async throws -> UserPlaylist {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -81,6 +85,7 @@ struct UserPlaylistController: RouteCollection {
         return playlist
     }
 
+    @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -98,6 +103,7 @@ struct UserPlaylistController: RouteCollection {
         return .noContent
     }
 
+    @Sendable
     func addSong(req: Request) async throws -> HTTPStatus {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -124,6 +130,7 @@ struct UserPlaylistController: RouteCollection {
         }
     }
 
+    @Sendable
     func removeSong(req: Request) async throws -> HTTPStatus {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
@@ -145,6 +152,7 @@ struct UserPlaylistController: RouteCollection {
         return .noContent
     }
 
+    @Sendable
     func getSongs(req: Request) async throws -> [PlayableTrackDTO] {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
