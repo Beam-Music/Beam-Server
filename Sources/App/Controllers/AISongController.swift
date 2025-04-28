@@ -139,7 +139,8 @@ struct AISongController: RouteCollection {
         
         // Get all songs from the same playlist
         let playlistQuery = UserPlaylist.query(on: req.db)
-            .filter(\.$songs.$id == currentTrackID)
+            .join(PlaylistSong.self, on: \UserPlaylist.$id == \PlaylistSong.$playlist.$id)
+            .filter(PlaylistSong.self, \.$song.$id == currentTrackID)
             .with(\.$songs) { songBuilder in
                 songBuilder.with(\.$artist)
             }
@@ -195,8 +196,9 @@ struct AISongController: RouteCollection {
             throw Abort(.internalServerError, reason: "Artist not found for next track")
         }
         
+        let nextTrackID = try nextTrack.requireID()
         let aiSong = try await AiSong.query(on: req.db)
-            .filter(\.$song.$id == try nextTrack.requireID())
+            .filter(\.$song.$id == nextTrackID)
             .first()
         
         print("Returning next track: \(nextTrack.title), isAIGenerated: \(String(describing: nextTrack.isAIGenerated))")
