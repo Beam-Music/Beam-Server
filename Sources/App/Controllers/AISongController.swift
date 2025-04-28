@@ -171,28 +171,42 @@ struct AISongController: RouteCollection {
         // Get next track based on AI music preference
         let nextTrack: Song
         if isAIMusicEnabled {
-            // Find next AI track
+            // Find next AI track in the remaining songs
             let remainingSongs = Array(songs[(currentIndex + 1)...] + songs[..<currentIndex])
             print("Looking for next AI track in \(remainingSongs.count) remaining songs")
+            
             if let nextAITrack = remainingSongs.first(where: { $0.isAIGenerated == true }) {
                 nextTrack = nextAITrack
                 print("Found next AI track: \(nextAITrack.title)")
             } else {
-                // If no AI track found, start from beginning
-                nextTrack = songs[0]
-                print("No AI track found, starting from beginning: \(songs[0].title)")
+                // If no AI track found, find first AI track in the entire playlist
+                if let firstAITrack = songs.first(where: { $0.isAIGenerated == true }) {
+                    nextTrack = firstAITrack
+                    print("No AI track found in remaining songs, starting from first AI track: \(firstAITrack.title)")
+                } else {
+                    // If no AI tracks at all, start from beginning
+                    nextTrack = songs[0]
+                    print("No AI tracks in playlist, starting from beginning: \(songs[0].title)")
+                }
             }
         } else {
-            // Find next non-AI track (explicitly check for false)
+            // Find next non-AI track in the remaining songs
             let remainingSongs = Array(songs[(currentIndex + 1)...] + songs[..<currentIndex])
             print("Looking for next non-AI track in \(remainingSongs.count) remaining songs")
+            
             if let nextNonAITrack = remainingSongs.first(where: { $0.isAIGenerated == false }) {
                 nextTrack = nextNonAITrack
                 print("Found next non-AI track: \(nextNonAITrack.title)")
             } else {
-                // If no non-AI track found, start from beginning
-                nextTrack = songs[0]
-                print("No non-AI track found, starting from beginning: \(songs[0].title)")
+                // If no non-AI track found, find first non-AI track in the entire playlist
+                if let firstNonAITrack = songs.first(where: { $0.isAIGenerated == false }) {
+                    nextTrack = firstNonAITrack
+                    print("No non-AI track found in remaining songs, starting from first non-AI track: \(firstNonAITrack.title)")
+                } else {
+                    // If no non-AI tracks at all, start from beginning
+                    nextTrack = songs[0]
+                    print("No non-AI tracks in playlist, starting from beginning: \(songs[0].title)")
+                }
             }
         }
         
