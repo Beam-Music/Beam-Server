@@ -185,8 +185,9 @@ struct UserPlaylistController: RouteCollection {
 
         let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongs.map { ($0.$song.id, $0) })
 
-        // Create DTOs for each song
-        return try songs.map { song -> PlayableTrackDTO in
+        // Create DTOs for each song using async map
+        var result: [PlayableTrackDTO] = []
+        for song in songs {
             // Ensure artist is loaded
             try await song.$artist.load(on: req.db)
             
@@ -195,7 +196,10 @@ struct UserPlaylistController: RouteCollection {
             }
             
             let correspondingAiSong = aiSongMap[try song.requireID()]
-            return try PlayableTrackDTO(song: song, artist: artist, aiSong: correspondingAiSong)
+            let dto = try PlayableTrackDTO(song: song, artist: artist, aiSong: correspondingAiSong)
+            result.append(dto)
         }
+        
+        return result
     }
 }
