@@ -34,46 +34,70 @@ struct AISongController: RouteCollection {
     
     @Sendable
     func getPlayableAISongs(_ req: Request) async throws -> [PlayableTrackDTO] {
-        print("🎵 Fetching AI generated songs...")
+        print("🎵 Starting getPlayableAISongs...")
         
-        let aiGeneratedSongs = try await Song.query(on: req.db)
-            .filter(\.$isAIGenerated == true)
-            .with(\.$artist)
-            .all()
-        
-        print("📊 Found \(aiGeneratedSongs.count) AI generated songs")
-        
-        guard !aiGeneratedSongs.isEmpty else {
-            print("⚠️ No AI generated songs found")
-            return []
-        }
-        
-        let songIDs = try aiGeneratedSongs.map { try $0.requireID() }
-        print("🔍 Fetching AI song data for IDs: \(songIDs)")
-        
-        let aiSongsData = try await AiSong.query(on: req.db)
-            .filter(\.$song.$id ~~ songIDs)
-            .all()
-        
-        print("📊 Found \(aiSongsData.count) AI song data records")
-        
-        let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongsData.map { ($0.$song.id, $0) })
-        
-        return try aiGeneratedSongs.compactMap { song -> PlayableTrackDTO? in
-            guard let artist = song.$artist.value else {
-                print("⚠️ Artist not loaded for song: \(song.title)")
-                return nil
+        do {
+            print("📊 Querying AI generated songs...")
+            let aiGeneratedSongs = try await Song.query(on: req.db)
+                .filter(\.$isAIGenerated == true)
+                .with(\.$artist)
+                .all()
+            
+            print("📊 Found \(aiGeneratedSongs.count) AI generated songs")
+            
+            if aiGeneratedSongs.isEmpty {
+                print("ℹ️ No AI generated songs found, returning empty array")
+                return []
             }
             
-            let songID = try song.requireID()
-            let aiSong = aiSongMap[songID]
+            let songIDs = try aiGeneratedSongs.map { song -> UUID in
+                let id = try song.requireID()
+                print("🎵 Found AI song: \(song.title) (ID: \(id))")
+                return id
+            }
             
-            print("🎵 Processing song: \(song.title)")
-            print("   Artist: \(artist.name)")
-            print("   AI Song Data: \(aiSong != nil ? "Found" : "Not Found")")
-            print("   File URL: \(aiSong?.fileUrl ?? "N/A")")
+            print("🔍 Fetching AI song data for \(songIDs.count) songs...")
+            let aiSongsData = try await AiSong.query(on: req.db)
+                .filter(\.$song.$id ~~ songIDs)
+                .all()
             
-            return try PlayableTrackDTO(song: song, artist: artist, aiSong: aiSong)
+            print("📊 Found \(aiSongsData.count) AI song data records")
+            
+            // AI 음악 데이터 매핑 및 검증
+            var aiSongMap: [UUID: AiSong] = [:]
+            for aiSong in aiSongsData {
+                let songId = aiSong.$song.id
+                print("🔗 Mapping AI song data - Song ID: \(songId)")
+                print("   File URL: \(aiSong.fileUrl)")
+                aiSongMap[songId] = aiSong
+            }
+            
+            print("🎵 Creating DTOs for \(aiGeneratedSongs.count) songs...")
+            let playableTracks = try aiGeneratedSongs.compactMap { song -> PlayableTrackDTO? in
+                let songId = try song.requireID()
+                print("\n🎵 Processing song: \(song.title) (ID: \(songId))")
+                
+                guard let artist = song.$artist.value else {
+                    print("⚠️ Artist not loaded for song: \(song.title)")
+                    return nil
+                }
+                
+                let aiSong = aiSongMap[songId]
+                print("   Artist: \(artist.name)")
+                print("   AI Song Data: \(aiSong != nil ? "Found" : "Not Found")")
+                if let aiSong = aiSong {
+                    print("   File URL: \(aiSong.fileUrl)")
+                }
+                
+                return try PlayableTrackDTO(song: song, artist: artist, aiSong: aiSong)
+            }
+            
+            print("✅ Successfully created \(playableTracks.count) PlayableTrackDTOs")
+            return playableTracks
+            
+        } catch {
+            print("❌ Error in getPlayableAISongs: \(error)")
+            throw error
         }
     }
     
