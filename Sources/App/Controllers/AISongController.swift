@@ -194,26 +194,20 @@ struct AISongController: RouteCollection {
                 nextTrack = aiTracks[nextAITrackIndex]
                 print("Found next AI track: \(nextTrack.title)")
             } else {
-                // If no AI track found after current position, start from the first AI track
-                // but only if the current track is not an AI track
                 if currentTrack.isAIGenerated == true {
-                    // If we're already on an AI track and at the end, start from the beginning
                     nextTrack = aiTracks[0]
                     print("Starting from first AI track: \(nextTrack.title)")
                 } else {
-                    // If we're on a non-AI track, find the first AI track
                     if let firstAITrack = aiTracks.first {
                         nextTrack = firstAITrack
                         print("Found first AI track: \(firstAITrack.title)")
                     } else {
-                        // Fallback to next song if no AI tracks found
                         nextTrack = songs[(currentIndex + 1) % songs.count]
                         print("No AI tracks found, playing next song: \(nextTrack.title)")
                     }
                 }
             }
         } else {
-            // Find next non-AI track in the remaining songs
             let remainingSongs = Array(songs[(currentIndex + 1)...] + songs[..<currentIndex])
             print("Looking for next non-AI track in \(remainingSongs.count) remaining songs")
             

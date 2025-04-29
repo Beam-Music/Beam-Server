@@ -14,6 +14,7 @@ struct PlayableTrackDTO: Content {
     let isAIGenerated: Bool
     let playbackUrl: String?
     let musicKitID: String?
+    let playbackStoreID: String?  // Added for MusicKit playback
     
     init(song: Song, artist: Artist, aiSong: AiSong?) throws {
         self.id = try song.requireID()
@@ -23,6 +24,7 @@ struct PlayableTrackDTO: Content {
         self.duration = song.duration
         self.artworkUrl = nil
         self.musicKitID = nil
+        self.playbackStoreID = nil  // Initialize as nil, will be set by client
         
         let generated = song.isAIGenerated ?? false
         self.isAIGenerated = generated
