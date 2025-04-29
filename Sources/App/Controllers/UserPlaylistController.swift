@@ -160,32 +160,40 @@ struct UserPlaylistController: RouteCollection {
             throw Abort(.badRequest, reason: "Invalid Playlist ID parameter")
         }
 
-        let playlistQuery = UserPlaylist.query(on: req.db)
+        // First check if the playlist exists and belongs to the user
+        guard let playlist = try await UserPlaylist.query(on: req.db)
             .filter(\.$id == playlistID)
             .filter(\.$user.$id == userID)
-            .with(\.$songs) { songBuilder in
-                songBuilder.with(\.$artist)
-            }
-
-        guard let playlist = try await playlistQuery.first() else {
+            .first() else {
             throw Abort(.notFound, reason: "Playlist not found or access denied")
         }
 
-        let songs = playlist.songs
+        // Load songs with their artists
+        let songs = try await playlist.$songs.query(on: req.db)
+            .with(\.$artist)
+            .all()
+
         guard !songs.isEmpty else { return [] }
 
+        // Get song IDs for AI song lookup
         let songIDs = try songs.map { try $0.requireID() }
 
+        // Load AI songs for these songs
         let aiSongs = try await AiSong.query(on: req.db)
             .filter(\.$song.$id ~~ songIDs)
             .all()
 
         let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongs.map { ($0.$song.id, $0) })
 
+        // Create DTOs for each song
         return try songs.map { song -> PlayableTrackDTO in
+            // Ensure artist is loaded
+            try await song.$artist.load(on: req.db)
+            
             guard let artist = song.$artist.value else {
-                throw Abort(.internalServerError, reason: "Artist relation value not loaded correctly for song \(try song.requireID())")
+                throw Abort(.internalServerError, reason: "Artist not found for song \(try song.requireID())")
             }
+            
             let correspondingAiSong = aiSongMap[try song.requireID()]
             return try PlayableTrackDTO(song: song, artist: artist, aiSong: correspondingAiSong)
         }
