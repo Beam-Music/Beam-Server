@@ -27,10 +27,10 @@ struct AISongController: RouteCollection {
         let aiSongs = routes.grouped("api", "ai-songs")
         print("📡 Created ai-songs route group")
         
-        aiSongs.get("playable") { req -> [PlayableTrackDTO] in
+        aiSongs.get("playable") { req async throws -> [PlayableTrackDTO] in
             print("🎯 Received request for /api/ai-songs/playable")
             do {
-                print("🎵 Starting getPlayableAISongs...")
+                print("🎵 Calling getPlayableAISongs...")
                 let result = try await self.getPlayableAISongs(req)
                 print("✅ Successfully returned \(result.count) playable tracks")
                 return result
@@ -40,6 +40,7 @@ struct AISongController: RouteCollection {
             }
         }
         
+        print("📝 Registered playable endpoint")
         aiSongs.post("register", use: registerNewAISongHandler)
         aiSongs.get(":aiSongID", use: getHandlerAsync)
         aiSongs.get("next-track", use: getNextTrack)
