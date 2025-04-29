@@ -34,28 +34,46 @@ struct AISongController: RouteCollection {
     
     @Sendable
     func getPlayableAISongs(_ req: Request) async throws -> [PlayableTrackDTO] {
+        print("🎵 Fetching AI generated songs...")
+        
         let aiGeneratedSongs = try await Song.query(on: req.db)
             .filter(\.$isAIGenerated == true)
             .with(\.$artist)
             .all()
         
-        guard !aiGeneratedSongs.isEmpty else { return [] }
+        print("📊 Found \(aiGeneratedSongs.count) AI generated songs")
+        
+        guard !aiGeneratedSongs.isEmpty else {
+            print("⚠️ No AI generated songs found")
+            return []
+        }
         
         let songIDs = try aiGeneratedSongs.map { try $0.requireID() }
+        print("🔍 Fetching AI song data for IDs: \(songIDs)")
         
         let aiSongsData = try await AiSong.query(on: req.db)
             .filter(\.$song.$id ~~ songIDs)
             .all()
         
+        print("📊 Found \(aiSongsData.count) AI song data records")
+        
         let aiSongMap = Dictionary(uniqueKeysWithValues: aiSongsData.map { ($0.$song.id, $0) })
         
-        
-        return try aiGeneratedSongs.map { (song: Song) -> PlayableTrackDTO in
-            guard let artist: Artist = song.$artist.value else {
-                throw Abort(.internalServerError, reason: "Artist not loaded for AI song \(try song.requireID())")
+        return try aiGeneratedSongs.compactMap { song -> PlayableTrackDTO? in
+            guard let artist = song.$artist.value else {
+                print("⚠️ Artist not loaded for song: \(song.title)")
+                return nil
             }
-            let correspondingAiSong: AiSong? = aiSongMap[try song.requireID()]
-            return try PlayableTrackDTO(song: song, artist: artist, aiSong: correspondingAiSong)
+            
+            let songID = try song.requireID()
+            let aiSong = aiSongMap[songID]
+            
+            print("🎵 Processing song: \(song.title)")
+            print("   Artist: \(artist.name)")
+            print("   AI Song Data: \(aiSong != nil ? "Found" : "Not Found")")
+            print("   File URL: \(aiSong?.fileUrl ?? "N/A")")
+            
+            return try PlayableTrackDTO(song: song, artist: artist, aiSong: aiSong)
         }
     }
     
@@ -135,14 +153,17 @@ struct AISongController: RouteCollection {
         
         print("Getting next track for currentTrackID: \(currentTrackID), isAIMusicEnabled: \(isAIMusicEnabled)")
         
-        // Get current track
-        guard let currentTrack = try await Song.find(currentTrackID, on: req.db) else {
+        // Get current track with artist
+        guard let currentTrack = try await Song.query(on: req.db)
+            .with(\.$artist)
+            .filter(\.$id == currentTrackID)
+            .first() else {
             throw Abort(.notFound, reason: "Current track not found")
         }
         
         print("Current track: \(currentTrack.title), isAIGenerated: \(String(describing: currentTrack.isAIGenerated))")
         
-        // Get all songs from the same playlist
+        // Get all songs from the same playlist with artists preloaded
         let playlistQuery = UserPlaylist.query(on: req.db)
             .join(PlaylistSong.self, on: \UserPlaylist.$id == \PlaylistSong.$playlist.$id)
             .filter(PlaylistSong.self, \.$song.$id == currentTrackID)
@@ -227,18 +248,26 @@ struct AISongController: RouteCollection {
     private func createPlayableTrackDTO(from song: Song, on db: Database) async throws -> PlayableTrackDTO {
         let songID = try song.requireID()
         
-        // Load the artist relationship
-        try await song.$artist.load(on: db)
+        // Load the artist relationship if not already loaded
+        if song.$artist.value == nil {
+            try await song.$artist.load(on: db)
+        }
         
         guard let artist = song.$artist.value else {
             throw Abort(.internalServerError, reason: "Artist not found for song")
         }
         
-        let aiSong = try await AiSong.query(on: db)
-            .filter(\.$song.$id == songID)
-            .first()
+        // For AI songs, ensure we have the AI song data
+        if song.isAIGenerated == true {
+            guard let aiSong = try await AiSong.query(on: db)
+                .filter(\.$song.$id == songID)
+                .first() else {
+                throw Abort(.internalServerError, reason: "AI song data not found for song: \(song.title)")
+            }
+            return try PlayableTrackDTO(song: song, artist: artist, aiSong: aiSong)
+        }
         
-        return try PlayableTrackDTO(song: song, artist: artist, aiSong: aiSong)
+        return try PlayableTrackDTO(song: song, artist: artist, aiSong: nil)
     }
     
     @Sendable

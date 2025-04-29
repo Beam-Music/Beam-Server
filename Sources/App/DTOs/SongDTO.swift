@@ -17,22 +17,38 @@ struct PlayableTrackDTO: Content {
     let playbackStoreID: String?  // Added for MusicKit playback
     
     init(song: Song, artist: Artist, aiSong: AiSong?) throws {
+        print("🎵 Creating PlayableTrackDTO")
+        print("   Song: \(song.title)")
+        print("   Artist: \(artist.name)")
+        print("   Is AI Generated: \(song.isAIGenerated ?? false)")
+        print("   AI Song Data: \(aiSong != nil ? "Present" : "Not Present")")
+        
         self.id = try song.requireID()
         self.title = song.title
         self.artistName = artist.name
         self.genre = song.genre
         self.duration = song.duration
         self.artworkUrl = nil
-        self.musicKitID = nil
-        self.playbackStoreID = nil  // Initialize as nil, will be set by client
         
-        let generated = song.isAIGenerated ?? false
-        self.isAIGenerated = generated
+        let isAI = song.isAIGenerated ?? false
+        self.isAIGenerated = isAI
         
-        if generated {
+        if isAI {
+            print("   Setting up AI song playback")
             self.playbackUrl = aiSong?.fileUrl
+            self.musicKitID = nil
+            self.playbackStoreID = nil
+            
+            if self.playbackUrl == nil {
+                print("⚠️ Warning: AI song has no playback URL")
+            } else {
+                print("   Playback URL: \(self.playbackUrl!)")
+            }
         } else {
+            print("   Setting up MusicKit song")
             self.playbackUrl = nil
+            self.musicKitID = nil
+            self.playbackStoreID = nil
         }
     }
 }
