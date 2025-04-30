@@ -14,41 +14,48 @@ struct PlayableTrackDTO: Content {
     let isAIGenerated: Bool
     let playbackUrl: String?
     let musicKitID: String?
-    let playbackStoreID: String?  // Added for MusicKit playback
-    
+    let playbackStoreID: String?
+
     init(song: Song, artist: Artist, aiSong: AiSong?) throws {
         print("🎵 Creating PlayableTrackDTO")
         print("   Song: \(song.title)")
         print("   Artist: \(artist.name)")
-        print("   Is AI Generated: \(song.isAIGenerated ?? false)")
-        print("   AI Song Data: \(aiSong != nil ? "Present" : "Not Present")")
-        
+
+        let isAI = song.isAIGenerated ?? false
+        print("   Is AI Generated: \(isAI)")
+
         self.id = try song.requireID()
         self.title = song.title
         self.artistName = artist.name
         self.genre = song.genre
         self.duration = song.duration
-        self.artworkUrl = nil
-        
-        let isAI = song.isAIGenerated ?? false
+        self.artworkUrl = nil // TODO: Implement artwork URL logic if needed
+
         self.isAIGenerated = isAI
-        
+
         if isAI {
+            print("   AI Song Data: \(aiSong != nil ? "Present" : "Not Present")")
             print("   Setting up AI song playback")
             self.playbackUrl = aiSong?.fileUrl
             self.musicKitID = nil
             self.playbackStoreID = nil
-            
+
             if self.playbackUrl == nil {
-                print("⚠️ Warning: AI song has no playback URL")
+                print("⚠️ Warning: AI song '\(song.title)' has no playback URL")
             } else {
                 print("   Playback URL: \(self.playbackUrl!)")
             }
         } else {
             print("   Setting up MusicKit song")
+            self.playbackStoreID = song.musicKitStoreID
             self.playbackUrl = nil
             self.musicKitID = nil
-            self.playbackStoreID = nil
+
+            if self.playbackStoreID == nil {
+                print("⚠️ Warning: MusicKit song '\(song.title)' has no playbackStoreID")
+            } else {
+                print("   Playback Store ID: \(self.playbackStoreID!)")
+            }
         }
     }
 }
