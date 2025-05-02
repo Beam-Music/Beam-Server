@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  
+//
 //
 //  Created by freed on 9/13/24.
 //
@@ -13,6 +13,7 @@ import Crypto
 
 struct UserPayload: JWTPayload, Authenticatable {
     var username: String
+    var userId: UUID
     var exp: ExpirationClaim
 
     func verify(using signer: JWTSigner) throws {
@@ -78,7 +79,7 @@ struct UserController: RouteCollection {
 
     // MARK: - Verify Email
     @Sendable
-    func verifyEmail(req: Request) async throws -> HTTPStatus {
+    func verifyEmail(req: Request) async throws -> TokenResponse {
         let verifyRequest = try req.content.decode(VerifyRequest.self)
         
         guard let verification = try await Verification.query(on: req.db)
@@ -100,7 +101,16 @@ struct UserController: RouteCollection {
         user.isVerified = true
         try await user.save(on: req.db)
         
-        return .ok
+        // Generate and return JWT token
+        let expirationDate = Date().addingTimeInterval(60 * 60 * 24) // 24 hours
+        let payload = UserPayload(
+            username: user.username,
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: expirationDate)
+        )
+        let token = try req.jwt.sign(payload)
+        
+        return TokenResponse(token: token)
     }
 
     // MARK: - Login
@@ -108,21 +118,34 @@ struct UserController: RouteCollection {
     func login(req: Request) async throws -> TokenResponse {
         let loginRequest = try req.content.decode(LoginRequest.self)
 
-        guard let user = try await User.query(on: req.db)
-            .filter(\.$username == loginRequest.username)
-            .first() else {
+        let user = try await User.query(on: req.db)
+            .group(.or) { builder in
+                builder.filter(\.$username == loginRequest.username)
+                builder.filter(\.$email == loginRequest.username)
+            }
+            .first()
+            
+        guard let user = user else {
             throw Abort(.unauthorized, reason: "Invalid credentials")
         }
         
-        let passwordMatches = try Bcrypt.verify(loginRequest.password, created: user.passwordHash)
+        guard user.isVerified else {
+            throw Abort(.unauthorized, reason: "Please verify your email before logging in")
+        }
+        
+        let passwordMatches = try await req.password.async.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
             throw Abort(.unauthorized, reason: "Invalid credentials")
         }
-
-        let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
-        let payload = UserPayload(username: user.username, exp: ExpirationClaim(value: expirationDate))
+        
+        let expirationDate = Date().addingTimeInterval(60 * 60 * 24) // 24 hours
+        let payload = UserPayload(
+            username: user.username,
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: expirationDate)
+        )
+        
         let token = try req.jwt.sign(payload)
-
         return TokenResponse(token: token)
     }
 
@@ -130,20 +153,22 @@ struct UserController: RouteCollection {
     @Sendable
     func get(req: Request) async throws -> User {
         let payload = try req.auth.require(UserPayload.self)
-        
-        guard let user = try await User.query(on: req.db)
-            .filter(\.$username == payload.username)
-            .first() else {
+        guard let user = try await User.find(payload.userId, on: req.db) else {
             throw Abort(.notFound)
         }
-
         return user
     }
 
     // MARK: - Update User by ID
     @Sendable
     func update(req: Request) async throws -> User {
-        guard let user = try await User.find(req.parameters.get("userID"), on: req.db) else {
+        let payload = try req.auth.require(UserPayload.self)
+        guard let userID = req.parameters.get("userID", as: UUID.self),
+              userID == payload.userId else {
+            throw Abort(.forbidden, reason: "You can only update your own account")
+        }
+        
+        guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.notFound)
         }
         let updatedUser = try req.content.decode(User.self)
@@ -156,7 +181,13 @@ struct UserController: RouteCollection {
     // MARK: - Delete User by ID
     @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
-        guard let user = try await User.find(req.parameters.get("userID"), on: req.db) else {
+        let payload = try req.auth.require(UserPayload.self)
+        guard let userID = req.parameters.get("userID", as: UUID.self),
+              userID == payload.userId else {
+            throw Abort(.forbidden, reason: "You can only delete your own account")
+        }
+        
+        guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.notFound)
         }
         try await user.delete(on: req.db)

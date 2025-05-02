@@ -24,7 +24,8 @@ struct RegisterAISongRequest: Content {
 struct AISongController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         print("🚀 Setting up AISongController routes...")
-        let aiSongs = routes.grouped("api", "ai-songs")
+        let jwtProtected = routes.grouped(JWTMiddleware())
+        let aiSongs = jwtProtected.grouped("api", "ai-songs")
         print("📡 Created ai-songs route group")
         
         aiSongs.get("playable") { req async throws -> [PlayableTrackDTO] in

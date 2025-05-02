@@ -7,16 +7,18 @@
 
 import Fluent
 
-struct CreateRecommendPlaylist: AsyncMigration {
-    func prepare(on database: Database) async throws {
-        try await database.schema("playlist_recommendation")
+struct CreateRecommendPlaylist: Migration {
+    func prepare(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("playlist_recommendation")
             .id()
             .field("name", .string, .required)
+            .field("description", .string, .required)
+            .field("user_id", .uuid, .required, .references("users", "id"))
             .create()
     }
 
-    func revert(on database: Database) async throws {
-        try await database.schema("playlist_recommendation").delete()
+    func revert(on database: Database) -> EventLoopFuture<Void> {
+        database.schema("playlist_recommendation").delete()
     }
 }
 

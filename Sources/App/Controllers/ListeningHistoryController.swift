@@ -8,7 +8,9 @@ import Vapor
 
 struct ListeningHistoryController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let history = routes.grouped("api", "listening-history")
+        let jwtProtected = routes.grouped(JWTMiddleware())
+        let history = jwtProtected.grouped("api", "listening-history")
+        
         history.get(use: index)
         history.post(use: create)
         history.get(":historyID", use: get)
