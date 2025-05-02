@@ -26,8 +26,10 @@ struct CreateUser: Migration {
         database.schema("users")
             .id()
             .field("username", .string, .required)
-            .field("password", .string, .required)
+            .field("email", .string, .required)
+            .field("password_hash", .string, .required)
             .field("is_verified", .bool, .required, .sql(.default(false)))
+            .unique(on: "email")
             .create()
     }
 

@@ -116,7 +116,25 @@ struct SeedAIMusic: AsyncMigration {
             .first() {
             targetPlaylist = existingPlaylist
         } else {
-            let newPlaylist = RecommendPlaylist(name: targetPlaylistName) // RecommendPlaylist 모델의 init 사용
+            // Get or create the system user for seeded playlists
+            let systemUser = try await User.query(on: database)
+                .filter(\.$username == "system")
+                .first() ?? User(
+                    username: "system",
+                    email: "system@beam-music.app",
+                    passwordHash: try Bcrypt.hash("system"),
+                    isVerified: true
+                )
+            
+            if systemUser.id == nil {
+                try await systemUser.save(on: database)
+            }
+            
+            let newPlaylist = RecommendPlaylist(
+                name: targetPlaylistName,
+                description: "AI Generated Playlist",
+                userID: try systemUser.requireID()
+            )
             try await newPlaylist.save(on: database)
             targetPlaylist = newPlaylist
         }

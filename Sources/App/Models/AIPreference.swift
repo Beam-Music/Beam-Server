@@ -1,7 +1,7 @@
 import Vapor
 import Fluent
 
-final class AIPreference: Model, Content {
+final class AIPreference: Model, Content, @unchecked Sendable {
     static let schema = "ai_preferences"
     
     @ID(key: .id)

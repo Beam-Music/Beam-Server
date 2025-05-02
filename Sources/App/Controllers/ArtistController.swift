@@ -9,7 +9,9 @@ import Vapor
 
 struct ArtistController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let artists = routes.grouped("api", "artists")
+        let jwtProtected = routes.grouped(JWTMiddleware())
+        let artists = jwtProtected.grouped("api", "artists")
+        
         artists.get(use: index)
         artists.post(use: create)
         artists.get(":artistID", use: get)

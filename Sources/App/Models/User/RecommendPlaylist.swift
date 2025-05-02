@@ -17,14 +17,22 @@ final class RecommendPlaylist: Model, Content, @unchecked Sendable {
     @Field(key: "name")
     var name: String
     
+    @Field(key: "description")
+    var description: String
+    
+    @Parent(key: "user_id")
+    var user: User
+    
     @Siblings(through: RecommendPlaylistSong.self, from: \.$playlist, to: \.$song)
     var songs: [Song]
     
     init() { }
     
-    init(id: UUID? = nil, name: String) {
+    init(id: UUID? = nil, name: String, description: String = "", userID: UUID) {
         self.id = id
         self.name = name
+        self.description = description
+        self.$user.id = userID
     }
 }
 

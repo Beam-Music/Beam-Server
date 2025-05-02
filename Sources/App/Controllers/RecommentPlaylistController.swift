@@ -3,10 +3,13 @@ import Fluent
 
 struct RecommendPlaylistController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let playlists = routes.grouped("recommend-playlists")
+        let jwtProtected = routes.grouped(JWTMiddleware())
+        let playlists = jwtProtected.grouped("recommend-playlists")
+        
         playlists.get(use: index)
         playlists.post(use: create)
         playlists.get(":playlistID", use: get)
+        playlists.put(":playlistID", use: update)
         playlists.group(":playlistID") { playlist in
             playlist.get("songs", use: getSongs)
         }
@@ -73,11 +76,17 @@ struct RecommendPlaylistController: RouteCollection {
     // Creates a new recommendation playlist.
     @Sendable
     func create(req: Request) async throws -> RecommendPlaylist {
-        // Decode the playlist data from the request body.
-        let playlistData = try req.content.decode(RecommendPlaylist.self) // Assumes request body matches RecommendPlaylist structure
-        // Save the new playlist to the database.
-        try await playlistData.save(on: req.db)
-        return playlistData
+        let payload = try req.auth.require(UserPayload.self)
+        let playlistData = try req.content.decode(PlaylistCreateDTO.self)
+        
+        let playlist = RecommendPlaylist(
+            name: playlistData.name,
+            description: playlistData.description ?? "",
+            userID: payload.userId
+        )
+        
+        try await playlist.save(on: req.db)
+        return playlist
     }
 
     // GET /recommend-playlists/:playlistID
@@ -94,4 +103,50 @@ struct RecommendPlaylistController: RouteCollection {
         }
         return playlist
     }
+
+    // PUT /api/recommend-playlists/:playlistID
+    // Updates a specific recommendation playlist by its ID.
+    @Sendable
+    func update(req: Request) async throws -> RecommendPlaylist {
+        // Get playlist ID from parameters
+        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid playlist ID format.")
+        }
+        
+        // Find the existing playlist
+        guard let playlist = try await RecommendPlaylist.find(playlistID, on: req.db) else {
+            throw Abort(.notFound, reason: "Playlist with ID \(playlistID) not found.")
+        }
+        
+        // Get the authenticated user
+        let payload = try req.auth.require(UserPayload.self)
+        
+        // Verify ownership
+        let playlistUser = try await playlist.$user.get(on: req.db)
+        guard playlistUser.id == payload.userId else {
+            throw Abort(.forbidden, reason: "You can only update your own playlists")
+        }
+        
+        // Decode the update data
+        let updateData = try req.content.decode(PlaylistUpdateDTO.self)
+        
+        // Update the playlist
+        playlist.name = updateData.name
+        playlist.description = updateData.description ?? ""
+        
+        // Save changes
+        try await playlist.save(on: req.db)
+        return playlist
+    }
+}
+
+// Add these DTOs for create and update requests
+struct PlaylistCreateDTO: Content {
+    let name: String
+    let description: String?
+}
+
+struct PlaylistUpdateDTO: Content {
+    let name: String
+    let description: String?
 }
