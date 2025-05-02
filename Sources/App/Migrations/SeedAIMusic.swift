@@ -39,16 +39,17 @@ struct SeedAIMusic: AsyncMigration {
                 }
                 createdSongs.append(foundSong)
             } else {
-                let newSong = Song(
+                let song = Song(
                     title: data.title,
                     artistID: artistID,
                     genre: data.genre ?? "Unknown Genre",
                     releaseDate: nil,
                     duration: data.duration,
-                    isAIGenerated: true
+                    isAIGenerated: true,
+                    musicKitStoreID: nil
                 )
-                try await newSong.save(on: database)
-                createdSongs.append(newSong)
+                try await song.save(on: database)
+                createdSongs.append(song)
             }
         }
 

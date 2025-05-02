@@ -8,7 +8,7 @@ import Vapor
 
 struct SongController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let songs = routes.grouped("songs")
+        let songs = routes.grouped("api", "songs")
         songs.get(use: index)
         songs.post(use: create)
         songs.get(":songID", use: get)
@@ -16,16 +16,19 @@ struct SongController: RouteCollection {
         songs.delete(":songID", use: delete)
     }
 
+    @Sendable
     func index(req: Request) async throws -> [Song] {
         try await Song.query(on: req.db).all()
     }
 
+    @Sendable
     func create(req: Request) async throws -> Song {
         let song = try req.content.decode(Song.self)
         try await song.save(on: req.db)
         return song
     }
 
+    @Sendable
     func get(req: Request) async throws -> Song {
         guard let song = try await Song.find(req.parameters.get("songID"), on: req.db) else {
             throw Abort(.notFound)
@@ -35,6 +38,7 @@ struct SongController: RouteCollection {
 
     
     
+    @Sendable
     func update(req: Request) async throws -> Song {
         guard let song = try await Song.find(req.parameters.get("songID"), on: req.db) else {
             throw Abort(.notFound)
@@ -59,6 +63,7 @@ struct SongController: RouteCollection {
         return song
     }
 
+    @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
         guard let song = try await Song.find(req.parameters.get("songID"), on: req.db) else {
             throw Abort(.notFound)

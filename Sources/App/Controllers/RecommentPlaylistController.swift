@@ -13,6 +13,7 @@ struct RecommendPlaylistController: RouteCollection {
     }
 
     
+    @Sendable
     func index(req: Request) async throws -> [PlaylistSummaryDTO] {
         let playlists = try await RecommendPlaylist.query(on: req.db).all()
         return playlists.map { playlist in
@@ -20,6 +21,7 @@ struct RecommendPlaylistController: RouteCollection {
         }
     }
 
+    @Sendable
     func getSongs(req: Request) async throws -> [PlayableTrackDTO] {
         guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
             throw Abort(.badRequest, reason: "Invalid playlist ID format.")
@@ -69,6 +71,7 @@ struct RecommendPlaylistController: RouteCollection {
 
     // POST /recommend-playlists
     // Creates a new recommendation playlist.
+    @Sendable
     func create(req: Request) async throws -> RecommendPlaylist {
         // Decode the playlist data from the request body.
         let playlistData = try req.content.decode(RecommendPlaylist.self) // Assumes request body matches RecommendPlaylist structure
@@ -79,6 +82,7 @@ struct RecommendPlaylistController: RouteCollection {
 
     // GET /recommend-playlists/:playlistID
     // Retrieves a specific recommendation playlist by its ID.
+    @Sendable
     func get(req: Request) async throws -> RecommendPlaylist {
         // Get playlist ID from parameters.
         guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
