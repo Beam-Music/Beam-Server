@@ -8,7 +8,7 @@ import Vapor
 
 struct UserSongPreferenceController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let preferences = routes.grouped("user-song-preferences")
+        let preferences = routes.grouped("api", "user-song-preferences")
         preferences.get(use: index)
         preferences.post(use: create)
         preferences.get(":preferenceID", use: get)
@@ -16,16 +16,19 @@ struct UserSongPreferenceController: RouteCollection {
         preferences.delete(":preferenceID", use: delete)
     }
 
+    @Sendable
     func index(req: Request) async throws -> [UserSongPreference] {
         try await UserSongPreference.query(on: req.db).all()
     }
 
+    @Sendable
     func create(req: Request) async throws -> UserSongPreference {
         let preference = try req.content.decode(UserSongPreference.self)
         try await preference.save(on: req.db)
         return preference
     }
 
+    @Sendable
     func get(req: Request) async throws -> UserSongPreference {
         guard let preference = try await UserSongPreference.find(req.parameters.get("preferenceID"), on: req.db) else {
             throw Abort(.notFound)
@@ -33,6 +36,7 @@ struct UserSongPreferenceController: RouteCollection {
         return preference
     }
 
+    @Sendable
     func update(req: Request) async throws -> UserSongPreference {
         guard let preference = try await UserSongPreference.find(req.parameters.get("preferenceID"), on: req.db) else {
             throw Abort(.notFound)
@@ -43,6 +47,7 @@ struct UserSongPreferenceController: RouteCollection {
         return preference
     }
 
+    @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
         guard let preference = try await UserSongPreference.find(req.parameters.get("preferenceID"), on: req.db) else {
             throw Abort(.notFound)
