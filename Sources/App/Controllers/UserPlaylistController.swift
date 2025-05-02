@@ -21,12 +21,9 @@ struct UserPlaylistController: RouteCollection {
 
     private func getUserFromPayload(req: Request) async throws -> User {
         let payload = try req.auth.require(UserPayload.self)
-        guard let user = try await User.query(on: req.db)
-            .filter(\.$username == payload.username)
-            .first() else {
+        guard let user = try await User.find(payload.userId, on: req.db) else {
             throw Abort(.unauthorized, reason: "User not found for provided token payload.")
         }
-        _ = try user.requireID()
         return user
     }
 

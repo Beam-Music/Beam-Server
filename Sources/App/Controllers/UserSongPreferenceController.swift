@@ -8,7 +8,9 @@ import Vapor
 
 struct UserSongPreferenceController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
-        let preferences = routes.grouped("api", "user-song-preferences")
+        let jwtProtected = routes.grouped(JWTMiddleware())
+        let preferences = jwtProtected.grouped("api", "user-song-preferences")
+        
         preferences.get(use: index)
         preferences.post(use: create)
         preferences.get(":preferenceID", use: get)
