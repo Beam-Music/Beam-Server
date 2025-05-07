@@ -5,6 +5,7 @@ import Vapor
 import JWT
 import SendGrid
 
+
 public func configure(_ app: Application) async throws {
     // MARK: Database
     if let databaseURL = Environment.get("DATABASE_URL"),
@@ -58,7 +59,7 @@ public func configure(_ app: Application) async throws {
     
     app.migrations.add(CreateUser())
     app.migrations.add(AddTestUser())
-    app.migrations.add(AddEmailAndPasswordToUser())
+//    app.migrations.add(AddEmailAndPasswordToUser())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateRecommendPlaylist())
     app.migrations.add(CreateSong())
@@ -111,11 +112,10 @@ public func configure(_ app: Application) async throws {
         print("[Migration] Skipping auto-migration in production environment.")
     }
     
-    // Configure SendGrid if API key is available
-//    if let sendgridApiKey = Environment.get("SENDGRID_API_KEY") {
-//        app.sendgrid.initialize(apiKey: sendgridApiKey)
-//        print("[SendGrid] Initialized.")
-//    } else {
-//        app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid will not be available.")
-//    }
+    if Environment.get("SENDGRID_API_KEY") != nil {
+            app.sendgrid.initialize()
+            print("[SendGrid] Service initialized. It will use the SENDGRID_API_KEY from the environment variables.")
+    } else {
+        app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid might not work correctly or will fail at runtime.")
+    }
 }
