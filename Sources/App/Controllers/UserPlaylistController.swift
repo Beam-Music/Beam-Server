@@ -17,6 +17,7 @@ struct UserPlaylistController: RouteCollection {
         playlists.post(":playlistID", "songs", ":songID", use: addSong)
         playlists.delete(":playlistID", "songs", ":songID", use: removeSong)
         playlists.get(":playlistID", "songs", use: getSongs)
+        playlists.post(":playlistID", "songs", use: addSongByBody)
     }
 
     private func getUserFromPayload(req: Request) async throws -> User {
@@ -198,5 +199,62 @@ struct UserPlaylistController: RouteCollection {
         }
         
         return result
+    }
+
+    struct AddSongRequest: Content {
+        let songId: String 
+        let title: String
+        let artistName: String
+    }
+
+    @Sendable
+    func addSongByBody(req: Request) async throws -> HTTPStatus {
+        let user = try await self.getUserFromPayload(req: req)
+        let userID = try user.requireID()
+        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid playlist ID format.")
+        }
+        let data = try req.content.decode(AddSongRequest.self)
+        guard let playlist = try await UserPlaylist.query(on: req.db)
+            .filter(\.$id == playlistID)
+            .filter(\.$user.$id == userID)
+            .first() else {
+            throw Abort(.notFound, reason: "Playlist not found or access denied.")
+        }
+
+        let artist: Artist
+        if let foundArtist = try await Artist.query(on: req.db)
+            .filter(\.$name == data.artistName)
+            .first() {
+            artist = foundArtist
+        } else {
+            let newArtist = Artist(name: data.artistName, debutYear: 2020)
+            try await newArtist.save(on: req.db)
+            artist = newArtist
+        }
+
+        let song: Song
+        if let foundSong = try await Song.query(on: req.db)
+            .filter(\.$musicKitStoreID == data.songId)
+            .first() {
+            song = foundSong
+        } else {
+            let newSong = Song(
+                title: data.title,
+                artistID: try artist.requireID(),
+                genre: "Pop", // 기본값
+                musicKitStoreID: data.songId
+            )
+            try await newSong.save(on: req.db)
+            song = newSong
+        }
+
+        let alreadyAttached = try await playlist.$songs.isAttached(to: song, on: req.db)
+        if !alreadyAttached {
+            try await playlist.$songs.attach(song, on: req.db)
+            return .created
+        } else {
+            return .ok
+        }
     }
 }
