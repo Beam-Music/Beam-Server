@@ -132,9 +132,8 @@ struct UserPlaylistController: RouteCollection {
     func removeSong(req: Request) async throws -> HTTPStatus {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
-        guard let playlistID = req.parameters.get("playlistID", as: UUID.self),
-              let songID = req.parameters.get("songID", as: UUID.self) else {
-            throw Abort(.badRequest, reason: "Invalid playlist or song ID format.")
+        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid playlist ID format.")
         }
         guard let playlist = try await UserPlaylist.query(on: req.db)
             .filter(\.$id == playlistID)
@@ -142,11 +141,27 @@ struct UserPlaylistController: RouteCollection {
             .first() else {
             throw Abort(.notFound, reason: "Playlist not found or access denied.")
         }
-        guard let song = try await Song.find(songID, on: req.db) else {
+
+        guard let songIDParam = req.parameters.get("songID") else {
+            throw Abort(.badRequest, reason: "Missing song ID parameter.")
+        }
+
+        let song: Song?
+        if let uuid = UUID(uuidString: songIDParam) {
+            // UUID로 파싱 가능하면 기존 방식
+            song = try await Song.find(uuid, on: req.db)
+        } else {
+            // 아니면 musicKitStoreID로 곡 찾기
+            song = try await Song.query(on: req.db)
+                .filter(\.$musicKitStoreID == songIDParam)
+                .first()
+        }
+
+        guard let foundSong = song else {
             return .noContent
         }
 
-        try await playlist.$songs.detach(song, on: req.db)
+        try await playlist.$songs.detach(foundSong, on: req.db)
         return .noContent
     }
 

@@ -20,7 +20,7 @@ struct RecommendPlaylistController: RouteCollection {
     func index(req: Request) async throws -> [PlaylistSummaryDTO] {
         let playlists = try await RecommendPlaylist.query(on: req.db).all()
         return playlists.map { playlist in
-            PlaylistSummaryDTO(id: playlist.id, name: playlist.name, description: playlist.description)
+            PlaylistSummaryDTO(id: playlist.id, name: playlist.name)
         }
     }
 

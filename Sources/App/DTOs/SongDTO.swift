@@ -48,6 +48,7 @@ struct PlayableTrackDTO: Content {
         } else {
             print("   Setting up MusicKit song")
             self.playbackStoreID = song.musicKitStoreID
+            print("   [DEBUG] Assigned playbackStoreID: \(self.playbackStoreID ?? "nil") for song: \(song.title)")
             self.playbackUrl = nil
             self.musicKitID = nil
 
@@ -61,14 +62,19 @@ struct PlayableTrackDTO: Content {
 }
 
 struct PlaylistSummaryDTO: Content {
-    let id: UUID?
-    let name: String
-    let description: String?
-    
-    init(id: UUID?, name: String, description: String? = nil) {
+    var id: UUID?
+    var name: String
+    var user: User?
+
+    struct User: Content {
+        var id: UUID
+        var username: String
+    }
+
+    init(id: UUID?, name: String, user: User? = nil) {
         self.id = id
         self.name = name
-        self.description = description
+        self.user = user
     }
 }
 
