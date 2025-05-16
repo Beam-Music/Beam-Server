@@ -10,14 +10,23 @@ struct UserPlaylistController: RouteCollection {
 
         playlists.get(use: index)
         playlists.post(use: create)
-        playlists.get(":playlistID", use: get)
-        playlists.put(":playlistID", use: update)
-        playlists.delete(":playlistID", use: delete)
-
-        playlists.post(":playlistID", "songs", ":songID", use: addSong)
-        playlists.delete(":playlistID", "songs", ":songID", use: removeSong)
-        playlists.get(":playlistID", "songs", use: getSongs)
-        playlists.post(":playlistID", "songs", use: addSongByBody)
+        
+        playlists.group("order") { order in
+            order.put(":playlistID", use: updateSongOrder)
+        }
+        
+        playlists.group(":playlistID") { playlist in
+            playlist.get(use: get)
+            playlist.put(use: update)
+            playlist.delete(use: delete)
+            
+            playlist.group("songs") { songs in
+                songs.get(use: getSongs)
+                songs.post(use: addSongByBody)
+                songs.post(":songID", use: addSong)
+                songs.delete(":songID", use: removeSong)
+            }
+        }
     }
 
     private func getUserFromPayload(req: Request) async throws -> User {
@@ -39,13 +48,14 @@ struct UserPlaylistController: RouteCollection {
     }
 
     @Sendable
-    func create(req: Request) async throws -> UserPlaylist {
+    func create(req: Request) async throws -> PlaylistSummaryDTO {
         let user = try await self.getUserFromPayload(req: req)
         let userID = try user.requireID()
         let createData = try req.content.decode(CreateUserPlaylistData.self)
         let playlist = UserPlaylist(name: createData.name, userID: userID)
         try await playlist.save(on: req.db)
-        return playlist
+        let userDTO = PlaylistSummaryDTO.User(id: userID, username: user.username)
+        return PlaylistSummaryDTO(id: playlist.id, name: playlist.name, user: userDTO)
     }
 
     @Sendable
@@ -173,7 +183,6 @@ struct UserPlaylistController: RouteCollection {
             throw Abort(.badRequest, reason: "Invalid Playlist ID parameter")
         }
 
-        // First check if the playlist exists and belongs to the user
         guard let playlist = try await UserPlaylist.query(on: req.db)
             .filter(\.$id == playlistID)
             .filter(\.$user.$id == userID)
@@ -184,7 +193,9 @@ struct UserPlaylistController: RouteCollection {
         // Load songs with their artists
         let songs = try await playlist.$songs.query(on: req.db)
             .with(\.$artist)
+            .sort(PlaylistSong.self, \.$order)
             .all()
+        print("[ORDER] Returning songs for playlist \(playlistID):", songs.map { $0.title })
 
         guard !songs.isEmpty else { return [] }
 
@@ -217,7 +228,7 @@ struct UserPlaylistController: RouteCollection {
     }
 
     struct AddSongRequest: Content {
-        let songId: String 
+        let songId: String
         let title: String
         let artistName: String
     }
@@ -257,7 +268,7 @@ struct UserPlaylistController: RouteCollection {
             let newSong = Song(
                 title: data.title,
                 artistID: try artist.requireID(),
-                genre: "Pop", // 기본값
+                genre: "Pop",
                 musicKitStoreID: data.songId
             )
             try await newSong.save(on: req.db)
@@ -271,5 +282,54 @@ struct UserPlaylistController: RouteCollection {
         } else {
             return .ok
         }
+    }
+
+    struct UpdatePlaylistOrderRequest: Content {
+        let orderedSongIDs: [UUID]
+        let currentOrder: [CurrentOrderItem]?
+        
+        struct CurrentOrderItem: Content {
+            let id: UUID
+            let title: String
+            let playbackStoreID: String
+            let order: Int
+        }
+    }
+
+    @Sendable
+    func updateSongOrder(req: Request) async throws -> HTTPStatus {
+        let user = try await self.getUserFromPayload(req: req)
+        let userID = try user.requireID()
+        guard let playlistID = req.parameters.get("playlistID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid playlist ID format.")
+        }
+        let data = try req.content.decode(UpdatePlaylistOrderRequest.self)
+        guard let playlist = try await UserPlaylist.query(on: req.db)
+            .filter(\.$id == playlistID)
+            .filter(\.$user.$id == userID)
+            .first() else {
+            throw Abort(.notFound, reason: "Playlist not found or access denied.")
+        }
+
+        let pivots = try await PlaylistSong.query(on: req.db)
+            .filter(\.$playlist.$id == playlistID)
+            .with(\.$song)  // Song 관계를 eager loading
+            .all()
+        let pivotMap = Dictionary(uniqueKeysWithValues: pivots.compactMap { ($0.$song.id, $0) })
+
+        for (index, songID) in data.orderedSongIDs.enumerated() {
+            if let pivot = pivotMap[songID] {
+                pivot.order = index
+                do {
+                    try await pivot.save(on: req.db)
+                } catch {
+                    print("[ORDER][ERROR] Failed to save pivot for songID: \(songID), error: \(error)")
+                }
+            } else {
+                print("[ORDER] No pivot found for songID: \(songID)")
+            }
+        }
+        let sortedPivots = pivots.sorted { $0.order < $1.order }
+        return .ok
     }
 }

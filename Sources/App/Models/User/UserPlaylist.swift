@@ -37,11 +37,15 @@ final class PlaylistSong: Model, @unchecked Sendable {
     @Parent(key: "song_id")
     var song: Song
 
+    @Field(key: "order")
+    var order: Int
+
     init() { }
 
-    init(id: UUID? = nil, playlist: UserPlaylist, song: Song) throws {
+    init(id: UUID? = nil, playlist: UserPlaylist, song: Song, order: Int = 0) throws {
         self.id = id
         self.$playlist.id = try playlist.requireID()
         self.$song.id = try song.requireID()
+        self.order = order
     }
 }

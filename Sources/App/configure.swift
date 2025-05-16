@@ -29,7 +29,6 @@ public func configure(_ app: Application) async throws {
             app.logger.warning("DATABASE_PORT environment variable missing or invalid. Using default port \(SQLPostgresConfiguration.ianaPortNumber).")
         }
         
-        
         guard let username = Environment.get("DATABASE_USERNAME") else {
             throw Abort(.internalServerError, reason: "Missing DATABASE_USERNAME environment variable.")
         }
@@ -58,7 +57,7 @@ public func configure(_ app: Application) async throws {
     }
     
     app.migrations.add(CreateUser())
-    app.migrations.add(AddTestUser())
+    // app.migrations.add(AddTestUser())
 //    app.migrations.add(AddEmailAndPasswordToUser())
     app.migrations.add(CreateArtist())
     app.migrations.add(CreateRecommendPlaylist())
@@ -75,6 +74,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateUserSongPreference())
     
     app.migrations.add(CreatePlaylistSong())
+    app.migrations.add(AddOrderToPlaylistSong())
     app.migrations.add(CreateRecommendPlaylistSongPivot())
 
     app.migrations.add(BackfillAiSongSongID())
@@ -97,7 +97,6 @@ public func configure(_ app: Application) async throws {
     let serverPort = Environment.get("PORT").flatMap(Int.init) ?? 8080
     app.http.server.configuration.hostname = serverHostname
     app.http.server.configuration.port = serverPort
-    print("[Server] Configured to bind to \(serverHostname):\(serverPort)")
     
     
     // MARK: Routes
@@ -105,16 +104,13 @@ public func configure(_ app: Application) async throws {
     
     // MARK: Auto-migrate (Run migrations)
     if app.environment != .production {
-        print("[Migration] Starting auto-migration...")
         try await app.autoMigrate()
-        print("[Migration] Auto-migration finished.")
     } else {
         print("[Migration] Skipping auto-migration in production environment.")
     }
     
     if Environment.get("SENDGRID_API_KEY") != nil {
             app.sendgrid.initialize()
-            print("[SendGrid] Service initialized. It will use the SENDGRID_API_KEY from the environment variables.")
     } else {
         app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid might not work correctly or will fail at runtime.")
     }
