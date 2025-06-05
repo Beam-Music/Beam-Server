@@ -82,6 +82,9 @@ public func configure(_ app: Application) async throws {
     // app.migrations.add(RemoveArtistColumnFromSongs())
     app.migrations.add(SeedAIMusic())
     
+    app.migrations.add(AddProfileImageURLToUser())
+    
+    app.migrations.add(UpdateUserPlaylistUserCascade())
     
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
