@@ -29,6 +29,7 @@ struct UserController: RouteCollection {
         users.post("register", use: register)
         users.post("verify", use: verifyEmail)
         users.post("login", use: login)
+        users.post("send-verification-code", use: sendVerificationCode)
         
         // 인증 없이 유저 프로필 조회 가능
         users.get(":userID", "profile", use: getProfile)
@@ -101,38 +102,39 @@ struct UserController: RouteCollection {
 
     // MARK: - Verify Email
     @Sendable
-    func verifyEmail(req: Request) async throws -> TokenResponse {
+    func verifyEmail(req: Request) async throws -> VerifyResponse {
         let verifyRequest = try req.content.decode(VerifyRequest.self)
-        
+        // 인증코드 검증
         guard let verification = try await Verification.query(on: req.db)
             .filter(\.$email == verifyRequest.email)
             .filter(\.$code == verifyRequest.code)
             .first() else {
-                throw Abort(.notFound, reason: "Invalid verification code or email")
+                let resp = VerifyResponse(success: false, token: nil, reason: "인증번호가 일치하지 않습니다.")
+                req.logger.info("verifyEmail response: \(resp)")
+                return resp
         }
-        
         if verification.expiresAt < Date() {
-            throw Abort(.unauthorized, reason: "Verification code expired")
+            let resp = VerifyResponse(success: false, token: nil, reason: "인증번호가 만료되었습니다.")
+            req.logger.info("verifyEmail response: \(resp)")
+            return resp
         }
-        
-        guard let user = try await User.query(on: req.db)
+        var token: String? = nil
+        if let user = try await User.query(on: req.db)
             .filter(\.$email == verifyRequest.email)
-            .first() else {
-                throw Abort(.notFound, reason: "User not found")
+            .first() {
+            user.isVerified = true
+            try await user.save(on: req.db)
+            let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
+            let payload = UserPayload(
+                username: user.username,
+                userId: try user.requireID(),
+                exp: ExpirationClaim(value: expirationDate)
+            )
+            token = try req.jwt.sign(payload)
         }
-        user.isVerified = true
-        try await user.save(on: req.db)
-        
-        // Generate and return JWT token
-        let expirationDate = Date().addingTimeInterval(60 * 60 * 24) // 24 hours
-        let payload = UserPayload(
-            username: user.username,
-            userId: try user.requireID(),
-            exp: ExpirationClaim(value: expirationDate)
-        )
-        let token = try req.jwt.sign(payload)
-        
-        return TokenResponse(token: token)
+        let resp = VerifyResponse(success: true, token: token, reason: nil)
+        req.logger.info("verifyEmail response: \(resp)")
+        return resp
     }
 
     // MARK: - Login
@@ -248,6 +250,33 @@ struct UserController: RouteCollection {
         }
         return UserDTO(from: user)
     }
+
+    // MARK: - Send Verification Code (이메일 인증번호만 발송)
+    @Sendable
+    func sendVerificationCode(req: Request) async throws -> HTTPStatus {
+        struct EmailRequest: Content { let email: String }
+        let emailRequest = try req.content.decode(EmailRequest.self)
+        let email = emailRequest.email
+        // 인증코드 생성 및 저장
+        let verificationCode = String(Int.random(in: 100000...999999))
+        let expiresAt = Date().addingTimeInterval(600)
+        // 기존 인증 row가 있으면 갱신, 없으면 새로 생성
+        if let existingVerification = try await Verification.query(on: req.db)
+            .filter(\.$email == email)
+            .first() {
+            existingVerification.code = verificationCode
+            existingVerification.expiresAt = expiresAt
+            try await existingVerification.save(on: req.db)
+        } else {
+            let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
+            try await newVerification.save(on: req.db)
+        }
+        // 이메일 발송
+        let fakeUser = User(username: email, email: email, passwordHash: "", profileImageURL: nil)
+        let emailController = EmailController()
+        try await emailController.sendVerificationEmail(req: req, user: fakeUser, verificationCode: verificationCode)
+        return .ok
+    }
 }
 
 // MARK: - Data Transfer Objects
@@ -274,4 +303,17 @@ struct VerifyRequest: Content {
 struct UpdateTasteRequest: Content {
     let favoriteArtists: [String]
     let favoriteGenres: [String]
+}
+
+struct SuccessResponse: Content {
+    let success: Bool
+}
+
+struct VerifyResponse: Content, CustomStringConvertible {
+    let success: Bool
+    let token: String?
+    let reason: String?
+    var description: String {
+        "{success: \(success), token: \(token ?? "nil"), reason: \(reason ?? "nil")}"
+    }
 }
