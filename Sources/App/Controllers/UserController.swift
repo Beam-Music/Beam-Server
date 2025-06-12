@@ -143,10 +143,7 @@ struct UserController: RouteCollection {
         let loginRequest = try req.content.decode(LoginRequest.self)
 
         let user = try await User.query(on: req.db)
-            .group(.or) { builder in
-                builder.filter(\.$username == loginRequest.username)
-                builder.filter(\.$email == loginRequest.username)
-            }
+            .filter(\.$email == loginRequest.email)
             .first()
             
         guard let user = user else {
@@ -158,7 +155,7 @@ struct UserController: RouteCollection {
         }
         
         // 비밀번호 검증 직전 로그 추가
-        print("[LOGIN DEBUG] username/email: \(loginRequest.username), 입력 비밀번호: \(loginRequest.password), DB 해시: \(user.passwordHash)")
+        print("[LOGIN DEBUG] email: \(loginRequest.email), 입력 비밀번호: \(loginRequest.password), DB 해시: \(user.passwordHash)")
         
         let passwordMatches = try await req.password.async.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
@@ -281,7 +278,7 @@ struct UserController: RouteCollection {
 
 // MARK: - Data Transfer Objects
 struct LoginRequest: Content {
-    let username: String
+    let email: String
     let password: String
 }
 
