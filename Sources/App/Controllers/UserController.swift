@@ -30,51 +30,73 @@ struct UserController: RouteCollection {
         users.post("verify", use: verifyEmail)
         users.post("login", use: login)
         
-        tokenProtected.get(":userID", use: get)
-        tokenProtected.put(":userID", use: update)
-        tokenProtected.delete(":userID", use: delete)
+        // 인증 없이 유저 프로필 조회 가능
+        users.get(":userID", "profile", use: getProfile)
+        
+        tokenProtected.group(":userID") { user in
+            user.get(use: get)
+            user.put(use: update)
+            user.delete(use: delete)
+            user.group("taste") { taste in
+                taste.put(use: updateTaste)
+            }
+        }
     }
 
     // MARK: - Registration
     @Sendable
-    func register(req: Request) async throws -> HTTPStatus {
-        let registerRequest = try req.content.decode(RegisterRequest.self)
-        
-        if let existingUser = try await User.query(on: req.db).filter(\.$email == registerRequest.email).first() {
+    func register(req: Request) async throws -> UserDTO {
+        let username = try req.content.get(String.self, at: "username")
+        let email = try req.content.get(String.self, at: "email")
+        let password = try req.content.get(String.self, at: "password")
+        let profileImage: File? = try? req.content.get(File.self, at: "profileImage")
+
+        var profileImageURL: String? = nil
+        if let image = profileImage {
+            let directory = req.application.directory.publicDirectory + "profile_images"
+            if !FileManager.default.fileExists(atPath: directory) {
+                try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            }
+            let filename = "\(UUID().uuidString)-\(image.filename)"
+            let savePath = directory + "/" + filename
+            let buffer = image.data
+            try await req.fileio.writeFile(buffer, at: savePath)
+            profileImageURL = "/profile_images/" + filename
+        }
+
+        if let existingUser = try await User.query(on: req.db).filter(\.$email == email).first() {
             let verificationCode = String(Int.random(in: 100000...999999))
             let expiresAt = Date().addingTimeInterval(600)
             
             if let existingVerification = try await Verification.query(on: req.db)
-                .filter(\.$email == registerRequest.email)
+                .filter(\.$email == email)
                 .first() {
                 existingVerification.code = verificationCode
                 existingVerification.expiresAt = expiresAt
                 try await existingVerification.save(on: req.db)
             } else {
-                let newVerification = Verification(email: registerRequest.email, code: verificationCode, expiresAt: expiresAt)
+                let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
                 try await newVerification.save(on: req.db)
             }
             
             let emailController = EmailController()
             try await emailController.sendVerificationEmail(req: req, user: existingUser, verificationCode: verificationCode)
-            
-            return .ok
+            return UserDTO(from: existingUser)
         }
-        
-        let hashedPassword = try Bcrypt.hash(registerRequest.password)
-        let user = User(username: registerRequest.username, email: registerRequest.email, passwordHash: hashedPassword)
+
+        let hashedPassword = try Bcrypt.hash(password)
+        let user = User(username: username, email: email, passwordHash: hashedPassword, profileImageURL: profileImageURL)
         try await user.save(on: req.db)
         
         let verificationCode = String(Int.random(in: 100000...999999))
         let expiresAt = Date().addingTimeInterval(600)
         
-        let verification = Verification(email: registerRequest.email, code: verificationCode, expiresAt: expiresAt)
+        let verification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
         try await verification.save(on: req.db)
         
         let emailController = EmailController()
-
         try await emailController.sendVerificationEmail(req: req, user: user, verificationCode: verificationCode)
-        return .created
+        return UserDTO(from: user)
     }
 
     // MARK: - Verify Email
@@ -133,6 +155,9 @@ struct UserController: RouteCollection {
             throw Abort(.unauthorized, reason: "Please verify your email before logging in")
         }
         
+        // 비밀번호 검증 직전 로그 추가
+        print("[LOGIN DEBUG] username/email: \(loginRequest.username), 입력 비밀번호: \(loginRequest.password), DB 해시: \(user.passwordHash)")
+        
         let passwordMatches = try await req.password.async.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
             throw Abort(.unauthorized, reason: "Invalid credentials")
@@ -178,7 +203,6 @@ struct UserController: RouteCollection {
         return user
     }
 
-    // MARK: - Delete User by ID
     @Sendable
     func delete(req: Request) async throws -> HTTPStatus {
         let payload = try req.auth.require(UserPayload.self)
@@ -186,12 +210,43 @@ struct UserController: RouteCollection {
               userID == payload.userId else {
             throw Abort(.forbidden, reason: "You can only delete your own account")
         }
-        
         guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.notFound)
         }
+        try await Verification.query(on: req.db)
+            .filter(\.$email == user.email)
+            .delete()
         try await user.delete(on: req.db)
         return .noContent
+    }
+
+    @Sendable
+    func updateTaste(req: Request) async throws -> UserDTO {
+        let payload = try req.auth.require(UserPayload.self)
+        guard let userID = req.parameters.get("userID", as: UUID.self),
+              userID == payload.userId else {
+            throw Abort(.forbidden, reason: "You can only update your own account's taste")
+        }
+        guard let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        let update = try req.content.decode(UpdateTasteRequest.self)
+        user.favoriteArtists = update.favoriteArtists
+        user.favoriteGenres = update.favoriteGenres
+        try await user.save(on: req.db)
+        return UserDTO(from: user)
+    }
+
+    // MARK: - Get User Profile (Public)
+    @Sendable
+    func getProfile(req: Request) async throws -> UserDTO {
+        guard let userID = req.parameters.get("userID", as: UUID.self) else {
+            throw Abort(.badRequest, reason: "Invalid user ID")
+        }
+        guard let user = try await User.find(userID, on: req.db) else {
+            throw Abort(.notFound, reason: "User not found")
+        }
+        return UserDTO(from: user)
     }
 }
 
@@ -214,4 +269,9 @@ struct RegisterRequest: Content {
 struct VerifyRequest: Content {
     let email: String
     let code: String
+}
+
+struct UpdateTasteRequest: Content {
+    let favoriteArtists: [String]
+    let favoriteGenres: [String]
 }
