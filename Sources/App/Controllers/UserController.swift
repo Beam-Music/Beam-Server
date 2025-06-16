@@ -66,20 +66,14 @@ struct UserController: RouteCollection {
         }
 
         if let existingUser = try await User.query(on: req.db).filter(\.$email == email).first() {
+            // 기존 verification row 모두 삭제
+            try await Verification.query(on: req.db)
+                .filter(\.$email == email)
+                .delete()
             let verificationCode = String(Int.random(in: 100000...999999))
             let expiresAt = Date().addingTimeInterval(600)
-            
-            if let existingVerification = try await Verification.query(on: req.db)
-                .filter(\.$email == email)
-                .first() {
-                existingVerification.code = verificationCode
-                existingVerification.expiresAt = expiresAt
-                try await existingVerification.save(on: req.db)
-            } else {
-                let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
-                try await newVerification.save(on: req.db)
-            }
-            
+            let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
+            try await newVerification.save(on: req.db)
             let emailController = EmailController()
             try await emailController.sendVerificationEmail(req: req, user: existingUser, verificationCode: verificationCode)
             return UserDTO(from: existingUser)
@@ -88,13 +82,14 @@ struct UserController: RouteCollection {
         let hashedPassword = try Bcrypt.hash(password)
         let user = User(username: username, email: email, passwordHash: hashedPassword, profileImageURL: profileImageURL)
         try await user.save(on: req.db)
-        
+        // 기존 verification row 모두 삭제
+        try await Verification.query(on: req.db)
+            .filter(\.$email == email)
+            .delete()
         let verificationCode = String(Int.random(in: 100000...999999))
         let expiresAt = Date().addingTimeInterval(600)
-        
         let verification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
         try await verification.save(on: req.db)
-        
         let emailController = EmailController()
         try await emailController.sendVerificationEmail(req: req, user: user, verificationCode: verificationCode)
         return UserDTO(from: user)
@@ -212,9 +207,14 @@ struct UserController: RouteCollection {
         guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.notFound)
         }
+        // 연관 데이터 먼저 삭제
         try await Verification.query(on: req.db)
-            .filter(\.$email == user.email)
+            .filter(\Verification.$email == user.email)
             .delete()
+        try await UserPlaylist.query(on: req.db)
+            .filter(\UserPlaylist.$user.$id == userID)
+            .delete()
+        // 필요하다면 다른 연관 테이블도 추가
         try await user.delete(on: req.db)
         return .noContent
     }
@@ -254,20 +254,15 @@ struct UserController: RouteCollection {
         struct EmailRequest: Content { let email: String }
         let emailRequest = try req.content.decode(EmailRequest.self)
         let email = emailRequest.email
+        // 기존 verification row 모두 삭제
+        try await Verification.query(on: req.db)
+            .filter(\.$email == email)
+            .delete()
         // 인증코드 생성 및 저장
         let verificationCode = String(Int.random(in: 100000...999999))
         let expiresAt = Date().addingTimeInterval(600)
-        // 기존 인증 row가 있으면 갱신, 없으면 새로 생성
-        if let existingVerification = try await Verification.query(on: req.db)
-            .filter(\.$email == email)
-            .first() {
-            existingVerification.code = verificationCode
-            existingVerification.expiresAt = expiresAt
-            try await existingVerification.save(on: req.db)
-        } else {
-            let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
-            try await newVerification.save(on: req.db)
-        }
+        let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
+        try await newVerification.save(on: req.db)
         // 이메일 발송
         let fakeUser = User(username: email, email: email, passwordHash: "", profileImageURL: nil)
         let emailController = EmailController()
