@@ -158,10 +158,8 @@ struct UserPlaylistController: RouteCollection {
 
         let song: Song?
         if let uuid = UUID(uuidString: songIDParam) {
-            // UUID로 파싱 가능하면 기존 방식
             song = try await Song.find(uuid, on: req.db)
         } else {
-            // 아니면 musicKitStoreID로 곡 찾기
             song = try await Song.query(on: req.db)
                 .filter(\.$musicKitStoreID == songIDParam)
                 .first()

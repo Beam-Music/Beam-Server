@@ -81,10 +81,9 @@ public func configure(_ app: Application) async throws {
     // app.migrations.add(SeedDefaultArtist())
     // app.migrations.add(RemoveArtistColumnFromSongs())
     app.migrations.add(SeedAIMusic())
+    // app.migrations.add(AddProfileImageURLToUsers())
     
-    app.migrations.add(AddProfileImageURLToUser())
-    
-    app.migrations.add(UpdateUserPlaylistUserCascade())
+    app.migrations.add(AddFavoriteArtistsAndGenresToUser())
     
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
@@ -117,4 +116,7 @@ public func configure(_ app: Application) async throws {
     } else {
         app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid might not work correctly or will fail at runtime.")
     }
+
+    // Body size 제한 늘리기 (예: 10MB)
+    app.routes.defaultMaxBodySize = "10mb"
 }
