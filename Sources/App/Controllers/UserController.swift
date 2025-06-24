@@ -76,7 +76,15 @@ struct UserController: RouteCollection {
             try await newVerification.save(on: req.db)
             let emailController = EmailController()
             try await emailController.sendVerificationEmail(req: req, user: existingUser, verificationCode: verificationCode)
-            return UserDTO(from: existingUser)
+            // 토큰 발급
+            let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
+            let payload = UserPayload(
+                username: existingUser.username,
+                userId: try existingUser.requireID(),
+                exp: ExpirationClaim(value: expirationDate)
+            )
+            let token = try req.jwt.sign(payload)
+            return UserDTO(from: existingUser, token: token)
         }
 
         let hashedPassword = try Bcrypt.hash(password)
@@ -92,7 +100,15 @@ struct UserController: RouteCollection {
         try await verification.save(on: req.db)
         let emailController = EmailController()
         try await emailController.sendVerificationEmail(req: req, user: user, verificationCode: verificationCode)
-        return UserDTO(from: user)
+        // 토큰 발급
+        let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
+        let payload = UserPayload(
+            username: user.username,
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: expirationDate)
+        )
+        let token = try req.jwt.sign(payload)
+        return UserDTO(from: user, token: token)
     }
 
     // MARK: - Verify Email
