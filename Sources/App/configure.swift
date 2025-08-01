@@ -96,7 +96,7 @@ public func configure(_ app: Application) async throws {
     
     // MARK: Server Configuration
     let serverHostname = Environment.get("HOST") ?? "0.0.0.0"
-    let serverPort = Environment.get("PORT").flatMap(Int.init) ?? 8080
+    let serverPort = Environment.get("PORT").flatMap(Int.init) ?? 8081
     app.http.server.configuration.hostname = serverHostname
     app.http.server.configuration.port = serverPort
     
@@ -117,6 +117,14 @@ public func configure(_ app: Application) async throws {
         app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid might not work correctly or will fail at runtime.")
     }
 
-    // Body size 제한 늘리기 (예: 10MB)
-    app.routes.defaultMaxBodySize = "10mb"
+    // Lalal.ai 설정
+    app.logger.info("Lalal.ai voice conversion system configured.")
+    app.logger.info("Note: Using Lalal.ai cloud API for voice conversion features.")
+
+        // Body size 제한 늘리기 (예: 100MB)
+    app.routes.defaultMaxBodySize = "100mb"
+
+    // 타임아웃 설정 늘리기
+    app.http.server.configuration.requestDecompression = .enabled(limit: .none)
+    app.http.server.configuration.responseCompression = .enabled
 }

@@ -27,6 +27,7 @@ Sources/
 - **데이터베이스**: PostgreSQL과 Fluent ORM
 - **이메일 서비스**: SendGrid 통합 이메일 인증
 - **AI 통합**: 커스텀 AI 음악 추천 시스템
+- **음성 변환**: Lalal.ai Voice Conversion API 통합
 - **음악 스트리밍**: 고품질 음원 스트리밍 서비스
 - **사용자 관리**: 프로필, 설정, 청취 기록 관리
 
@@ -46,6 +47,7 @@ Sources/
 DATABASE_URL=postgresql://username:password@host:port/database
 SENDGRID_API_KEY=your_sendgrid_api_key
 JWT_SECRET=your_jwt_secret
+# Lalal.ai API 키 필요 (클라우드 서비스)
 ```
 
 ### 로컬 개발 환경 설정
@@ -129,6 +131,68 @@ docker run -p 8080:8080 --env-file .env beam-server
 
 - `GET /api/ai-songs/playable`: AI 생성 음악 조회
 - `POST /api/ai-songs/register`: 새로운 AI 생성 음악 등록
+
+### 음성 변환 (Lalal.ai)
+
+#### 음성 변환
+
+- `POST /ai-convert/voice-conversion`: 기존 음성을 다른 음성으로 변환
+  - `audioFile`: 변환할 오디오 파일
+  - `voiceId`: 대상 음성 ID (예: "en_female_1", "ko_male_1")
+  - `outputFormat`: 출력 형식 (기본값: wav)
+  - `language`: 언어 코드 (예: "ko", "en", "ja")
+  - `useSeparation`: 음성 분리 사용 여부 (기본값: "true")
+    - `"true"`: Spleeter를 사용해 음성과 배경음악을 분리한 후 음성만 변환 (고품질)
+    - `"false"`: 전체 오디오를 직접 변환 (기본 방식)
+
+#### 음성 목록 조회
+
+- `GET /ai-convert/voices`: 사용 가능한 음성 목록 조회
+  - 기본 제공 보이스: 영어, 한국어, 일본어 남성/여성 보이스
+
+#### 서버 상태 확인
+
+- `GET /ai-convert/health`: Lalal.ai 서버 상태 확인
+
+#### 음성 변환 사용 예시
+
+1. **서버 상태 확인**:
+
+```bash
+# Lalal.ai 서버 상태 확인
+curl http://localhost:8080/ai-convert/health
+```
+
+2. **음성 목록 조회**:
+
+```bash
+# 사용 가능한 보이스 목록 조회
+curl http://localhost:8080/ai-convert/voices
+```
+
+3. **음성 변환**:
+
+```bash
+# 고품질 음성 변환 (음성 분리 사용)
+curl -X POST http://localhost:8080/ai-convert/voice-conversion \
+  -F "audioFile=@original_song.mp3" \
+  -F "voiceId=ko_female_1" \
+  -F "language=ko" \
+  -F "outputFormat=wav" \
+  -F "useSeparation=true" \
+  --output converted_song.wav
+
+# 기본 음성 변환 (전체 오디오 변환)
+curl -X POST http://localhost:8080/ai-convert/voice-conversion \
+  -F "audioFile=@original_song.mp3" \
+  -F "voiceId=ko_female_1" \
+  -F "language=ko" \
+  -F "outputFormat=wav" \
+  -F "useSeparation=false" \
+  --output converted_song.wav
+```
+
+**참고**: Lalal.ai는 클라우드 API 서비스로 별도 서버 설정이 필요하지 않습니다.
 
 ## 🔒 보안
 
