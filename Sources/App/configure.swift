@@ -8,15 +8,27 @@ import SendGrid
 
 public func configure(_ app: Application) async throws {
     // MARK: Database
-    if let databaseURL = Environment.get("DATABASE_URL"),
+    // Force use individual DB variables instead of DATABASE_URL for local development
+    let forceLocalDB = Environment.get("FORCE_LOCAL_DB") == "true" || Environment.get("DATABASE_HOST") != nil
+    
+    if !forceLocalDB, let databaseURL = Environment.get("DATABASE_URL"),
        var config = PostgresConfiguration(url: databaseURL) {
+        // Log database connection info (mask password)
+        if let url = URL(string: databaseURL) {
+            let host = url.host(percentEncoded: false) ?? "unknown"
+            let port = url.port ?? 5432
+            let dbName = url.path(percentEncoded: false).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            app.logger.info("📊 Using DATABASE_URL: \(host):\(port)/\(dbName)")
+        } else {
+            app.logger.info("📊 Using DATABASE_URL (connection string)")
+        }
         config.tlsConfiguration = .makeClientConfiguration()
         config.tlsConfiguration?.certificateVerification = .none
 
         app.databases.use(.postgres(
             configuration: config,
-            maxConnectionsPerEventLoop: 1,
-            connectionPoolTimeout: .seconds(10)
+            maxConnectionsPerEventLoop: 4,
+            connectionPoolTimeout: .seconds(30)
         ), as: .psql)
     } else {
         guard let hostname = Environment.get("DATABASE_HOST") else {
@@ -40,8 +52,16 @@ public func configure(_ app: Application) async throws {
             throw Abort(.internalServerError, reason: "Missing DATABASE_NAME environment variable.")
         }
         
+        // Use 127.0.0.1 instead of localhost for better compatibility
+        let dbHostname = hostname == "localhost" ? "127.0.0.1" : hostname
+        app.logger.info("📊 Using individual DATABASE variables: \(dbHostname):\(port)/\(databaseName) (user: \(username))")
+        app.logger.info("📊 Password set: \(password != nil ? "Yes" : "No")")
+        
+        // Verify PostgreSQL is accessible before configuring
+        app.logger.info("📊 Verifying PostgreSQL accessibility at \(dbHostname):\(port)...")
+        
         var config = SQLPostgresConfiguration(
-            hostname: hostname,
+            hostname: dbHostname,
             port: port,
             username: username,
             password: password,
@@ -49,11 +69,20 @@ public func configure(_ app: Application) async throws {
             tls: .disable
         )
         
+        // Increase timeout for local database connections
+        let connectionTimeout: TimeAmount = dbHostname == "127.0.0.1" || dbHostname == "localhost"
+            ? .seconds(60) 
+            : .seconds(30)
+        
+        app.logger.info("📊 Configuring database with timeout: \(connectionTimeout.nanoseconds / 1_000_000_000) seconds")
+        
         app.databases.use(.postgres(
             configuration: config,
-            maxConnectionsPerEventLoop: 1,
-            connectionPoolTimeout: .seconds(10)
+            maxConnectionsPerEventLoop: 2, // Reduce for local DB
+            connectionPoolTimeout: connectionTimeout
         ), as: .psql)
+        
+        app.logger.info("✅ Database configuration completed")
     }
     
     app.migrations.add(CreateUser())
@@ -88,9 +117,11 @@ public func configure(_ app: Application) async throws {
     // MARK: Middleware
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     app.middleware.use(ErrorMiddleware.default(environment: app.environment))
-    let jwtSecret = Environment.get("JWT_SECRET") ?? "your-very-secure-default-secret-key-replace-me"
-    if jwtSecret == "your-very-secure-default-secret-key-replace-me" {
-        app.logger.warning("Using default JWT secret. Set a strong JWT_SECRET environment variable in production.")
+    guard let jwtSecret = Environment.get("JWT_SECRET"), !jwtSecret.isEmpty else {
+        throw Abort(.internalServerError, reason: "JWT_SECRET environment variable must be set.")
+    }
+    if jwtSecret.count < 32 {
+        app.logger.warning("JWT_SECRET should be at least 32 characters long for security.")
     }
     app.jwt.signers.use(.hs256(key: jwtSecret))
     
@@ -100,6 +131,16 @@ public func configure(_ app: Application) async throws {
     app.http.server.configuration.hostname = serverHostname
     app.http.server.configuration.port = serverPort
     
+    // 서버 타임아웃 설정 개선
+    app.http.server.configuration.requestDecompression = .enabled(limit: .none)
+    app.http.server.configuration.responseCompression = .enabled
+    
+    // Body size 제한 늘리기 (예: 100MB)
+    app.routes.defaultMaxBodySize = "100mb"
+    
+    // 이벤트 루프 설정
+    app.http.server.configuration.backlog = 256
+    app.http.server.configuration.reuseAddress = true
     
     // MARK: Routes
     try routes(app)
@@ -111,20 +152,25 @@ public func configure(_ app: Application) async throws {
         print("[Migration] Skipping auto-migration in production environment.")
     }
     
-    if Environment.get("SENDGRID_API_KEY") != nil {
-            app.sendgrid.initialize()
+    // MARK: SendGrid Configuration
+    if let apiKey = Environment.get("SENDGRID_API_KEY") {
+        let keyPrefix = String(apiKey.prefix(5))
+        let keySuffix = String(apiKey.suffix(5))
+        app.logger.info("SendGrid API Key loaded: \(keyPrefix)...\(keySuffix)")
+        app.logger.info("SendGrid API Key full length: \(apiKey.count) characters")
+        
+        // Initialize SendGrid with the API key
+        app.sendgrid.initialize()
+        app.logger.info("SendGrid initialized successfully")
     } else {
         app.logger.warning("SENDGRID_API_KEY environment variable not set. SendGrid might not work correctly or will fail at runtime.")
+        let sendgridKeys = ProcessInfo.processInfo.environment.keys.filter { $0.contains("SENDGRID") || $0.contains("GRID") }
+        if !sendgridKeys.isEmpty {
+            app.logger.warning("Found related environment variables: \(sendgridKeys.joined(separator: ", "))")
+        }
     }
 
     // Lalal.ai 설정
     app.logger.info("Lalal.ai voice conversion system configured.")
     app.logger.info("Note: Using Lalal.ai cloud API for voice conversion features.")
-
-        // Body size 제한 늘리기 (예: 100MB)
-    app.routes.defaultMaxBodySize = "100mb"
-
-    // 타임아웃 설정 늘리기
-    app.http.server.configuration.requestDecompression = .enabled(limit: .none)
-    app.http.server.configuration.responseCompression = .enabled
 }

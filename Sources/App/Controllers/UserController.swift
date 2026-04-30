@@ -15,7 +15,18 @@ struct UserPayload: JWTPayload, Authenticatable {
     var username: String
     var userId: UUID
     var exp: ExpirationClaim
+    var type: String // "access" or "refresh"
 
+    func verify(using signer: JWTSigner) throws {
+        try exp.verifyNotExpired()
+    }
+}
+
+struct RefreshTokenPayload: JWTPayload {
+    var userId: UUID
+    var exp: ExpirationClaim
+    var type: String // "refresh"
+    
     func verify(using signer: JWTSigner) throws {
         try exp.verifyNotExpired()
     }
@@ -29,6 +40,7 @@ struct UserController: RouteCollection {
         users.post("register", use: register)
         users.post("verify", use: verifyEmail)
         users.post("login", use: login)
+        users.post("refresh", use: refreshToken) // 새로운 엔드포인트
         users.post("send-verification-code", use: sendVerificationCode)
         
         // 인증 없이 유저 프로필 조회 가능
@@ -54,37 +66,30 @@ struct UserController: RouteCollection {
 
         var profileImageURL: String? = nil
         if let image = profileImage {
+            // 파일 크기 제한 (5MB)
+            let maxSize = 5 * 1024 * 1024
+            guard image.data.readableBytes <= maxSize else {
+                throw Abort(.badRequest, reason: "Profile image must be under 5MB")
+            }
+            // 허용 확장자 검증
+            let allowedExtensions = ["jpg", "jpeg", "png", "webp", "heic"]
+            let ext = image.filename.lowercased().split(separator: ".").last.map(String.init) ?? ""
+            guard allowedExtensions.contains(ext) else {
+                throw Abort(.badRequest, reason: "Only image files are allowed (jpg, png, webp, heic)")
+            }
             let directory = req.application.directory.publicDirectory + "profile_images"
             if !FileManager.default.fileExists(atPath: directory) {
                 try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
             }
-            let filename = "\(UUID().uuidString)-\(image.filename)"
-            let savePath = directory + "/" + filename
+            let safeFilename = "\(UUID().uuidString).\(ext)"
+            let savePath = directory + "/" + safeFilename
             let buffer = image.data
             try await req.fileio.writeFile(buffer, at: savePath)
-            profileImageURL = "/profile_images/" + filename
+            profileImageURL = "/profile_images/" + safeFilename
         }
 
-        if let existingUser = try await User.query(on: req.db).filter(\.$email == email).first() {
-            // 기존 verification row 모두 삭제
-            try await Verification.query(on: req.db)
-                .filter(\.$email == email)
-                .delete()
-            let verificationCode = String(Int.random(in: 100000...999999))
-            let expiresAt = Date().addingTimeInterval(600)
-            let newVerification = Verification(email: email, code: verificationCode, expiresAt: expiresAt)
-            try await newVerification.save(on: req.db)
-            let emailController = EmailController()
-            try await emailController.sendVerificationEmail(req: req, user: existingUser, verificationCode: verificationCode)
-            // 토큰 발급
-            let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
-            let payload = UserPayload(
-                username: existingUser.username,
-                userId: try existingUser.requireID(),
-                exp: ExpirationClaim(value: expirationDate)
-            )
-            let token = try req.jwt.sign(payload)
-            return UserDTO(from: existingUser, token: token)
+        if let _ = try await User.query(on: req.db).filter(\.$email == email).first() {
+            throw Abort(.conflict, reason: "This email is already registered.")
         }
 
         let hashedPassword = try Bcrypt.hash(password)
@@ -101,14 +106,31 @@ struct UserController: RouteCollection {
         let emailController = EmailController()
         try await emailController.sendVerificationEmail(req: req, user: user, verificationCode: verificationCode)
         // 토큰 발급
-        let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
-        let payload = UserPayload(
+        let accessTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 7)
+        let accessPayload = UserPayload(
             username: user.username,
             userId: try user.requireID(),
-            exp: ExpirationClaim(value: expirationDate)
+            exp: ExpirationClaim(value: accessTokenExpiration),
+            type: "access"
         )
-        let token = try req.jwt.sign(payload)
-        return UserDTO(from: user, token: token)
+        
+        let refreshTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 30)
+        let refreshPayload = RefreshTokenPayload(
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: refreshTokenExpiration),
+            type: "refresh"
+        )
+        
+        let accessToken = try req.jwt.sign(accessPayload)
+        let refreshToken = try req.jwt.sign(refreshPayload)
+        
+        return UserDTO(
+            from: user,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: 60 * 60 * 24 * 7,
+            tokenType: "Bearer"
+        )
     }
 
     // MARK: - Verify Email
@@ -120,30 +142,70 @@ struct UserController: RouteCollection {
             .filter(\.$email == verifyRequest.email)
             .filter(\.$code == verifyRequest.code)
             .first() else {
-                let resp = VerifyResponse(success: false, token: nil, reason: "인증번호가 일치하지 않습니다.")
+                let resp = VerifyResponse(
+                    success: false,
+                    accessToken: nil,
+                    refreshToken: nil,
+                    expiresIn: nil,
+                    tokenType: nil,
+                    reason: "인증번호가 일치하지 않습니다."
+                )
                 req.logger.info("verifyEmail response: \(resp)")
                 return resp
         }
         if verification.expiresAt < Date() {
-            let resp = VerifyResponse(success: false, token: nil, reason: "인증번호가 만료되었습니다.")
+            let resp = VerifyResponse(
+                success: false,
+                accessToken: nil,
+                refreshToken: nil,
+                expiresIn: nil,
+                tokenType: nil,
+                reason: "인증번호가 만료되었습니다."
+            )
             req.logger.info("verifyEmail response: \(resp)")
             return resp
         }
-        var token: String? = nil
+        var accessToken: String? = nil
+        var refreshToken: String? = nil
+        var expiresIn: Int? = nil
+        var tokenType: String? = nil
+        
         if let user = try await User.query(on: req.db)
             .filter(\.$email == verifyRequest.email)
             .first() {
             user.isVerified = true
             try await user.save(on: req.db)
-            let expirationDate = Date().addingTimeInterval(60 * 60 * 24)
-            let payload = UserPayload(
+            
+            // 새로운 토큰 시스템 적용
+            let accessTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 7) // 7일
+            let accessPayload = UserPayload(
                 username: user.username,
                 userId: try user.requireID(),
-                exp: ExpirationClaim(value: expirationDate)
+                exp: ExpirationClaim(value: accessTokenExpiration),
+                type: "access"
             )
-            token = try req.jwt.sign(payload)
+            
+            let refreshTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 30) // 30일
+            let refreshPayload = RefreshTokenPayload(
+                userId: try user.requireID(),
+                exp: ExpirationClaim(value: refreshTokenExpiration),
+                type: "refresh"
+            )
+            
+            accessToken = try req.jwt.sign(accessPayload)
+            refreshToken = try req.jwt.sign(refreshPayload)
+            expiresIn = 60 * 60 * 24 * 7
+            tokenType = "Bearer"
         }
-        let resp = VerifyResponse(success: true, token: token, reason: nil)
+        
+        let resp = VerifyResponse(
+            success: true,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: expiresIn,
+            tokenType: tokenType,
+            reason: nil
+        )
         req.logger.info("verifyEmail response: \(resp)")
         return resp
     }
@@ -158,6 +220,7 @@ struct UserController: RouteCollection {
             .first()
             
         guard let user = user else {
+            req.logger.warning("[LOGIN FAILURE] User not found for email: \(loginRequest.email)")
             throw Abort(.unauthorized, reason: "Invalid credentials")
         }
         
@@ -165,23 +228,84 @@ struct UserController: RouteCollection {
             throw Abort(.unauthorized, reason: "Please verify your email before logging in")
         }
         
-        // 비밀번호 검증 직전 로그 추가
-        print("[LOGIN DEBUG] email: \(loginRequest.email), 입력 비밀번호: \(loginRequest.password), DB 해시: \(user.passwordHash)")
-        
         let passwordMatches = try await req.password.async.verify(loginRequest.password, created: user.passwordHash)
         guard passwordMatches else {
+            req.logger.warning("[LOGIN FAILURE] Password mismatch for user: \(user.email)")
             throw Abort(.unauthorized, reason: "Invalid credentials")
         }
         
-        let expirationDate = Date().addingTimeInterval(60 * 60 * 24) // 24 hours
-        let payload = UserPayload(
+        // Access Token: 7일 (더 긴 세션 유지)
+        let accessTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 7)
+        let accessPayload = UserPayload(
             username: user.username,
             userId: try user.requireID(),
-            exp: ExpirationClaim(value: expirationDate)
+            exp: ExpirationClaim(value: accessTokenExpiration),
+            type: "access"
         )
         
-        let token = try req.jwt.sign(payload)
-        return TokenResponse(token: token)
+        // Refresh Token: 30일 (자동 로그인 유지)
+        let refreshTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 30)
+        let refreshPayload = RefreshTokenPayload(
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: refreshTokenExpiration),
+            type: "refresh"
+        )
+        
+        let accessToken = try req.jwt.sign(accessPayload)
+        let refreshToken = try req.jwt.sign(refreshPayload)
+        
+        return TokenResponse(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: 60 * 60 * 24 * 7, // 7일을 초 단위로
+            tokenType: "Bearer"
+        )
+    }
+
+    // MARK: - Refresh Token
+    @Sendable
+    func refreshToken(req: Request) async throws -> TokenResponse {
+        let refreshRequest = try req.content.decode(RefreshTokenRequest.self)
+        
+        // Refresh Token 검증
+        let refreshPayload = try req.jwt.verify(refreshRequest.refreshToken, as: RefreshTokenPayload.self)
+        
+        // Refresh Token 타입 확인
+        guard refreshPayload.type == "refresh" else {
+            throw Abort(.unauthorized, reason: "Invalid token type")
+        }
+        
+        // 사용자 존재 확인
+        guard let user = try await User.find(refreshPayload.userId, on: req.db) else {
+            throw Abort(.unauthorized, reason: "User not found")
+        }
+        
+        // 새로운 Access Token 생성 (7일)
+        let accessTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 7)
+        let accessPayload = UserPayload(
+            username: user.username,
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: accessTokenExpiration),
+            type: "access"
+        )
+        
+        // 새로운 Refresh Token 생성 (30일)
+        let refreshTokenExpiration = Date().addingTimeInterval(60 * 60 * 24 * 30)
+        let newRefreshPayload = RefreshTokenPayload(
+            userId: try user.requireID(),
+            exp: ExpirationClaim(value: refreshTokenExpiration),
+            type: "refresh"
+        )
+        
+        let accessToken = try req.jwt.sign(accessPayload)
+        let refreshToken = try req.jwt.sign(newRefreshPayload)
+        
+        return TokenResponse(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: 60 * 60 * 24 * 7,
+            tokenType: "Bearer"
+        )
     }
 
     // MARK: - Get User by ID
@@ -227,10 +351,22 @@ struct UserController: RouteCollection {
         try await Verification.query(on: req.db)
             .filter(\Verification.$email == user.email)
             .delete()
+        try await ListeningHistory.query(on: req.db)
+            .filter(\ListeningHistory.$user.$id == userID)
+            .delete()
+        try await UserSongPreference.query(on: req.db)
+            .filter(\UserSongPreference.$user.$id == userID)
+            .delete()
+        try await AIPreference.query(on: req.db)
+            .filter(\AIPreference.$userId == userID)
+            .delete()
+        // RecommendPlaylist의 pivot 데이터는 CASCADE로 처리됨
+        try await RecommendPlaylist.query(on: req.db)
+            .filter(\RecommendPlaylist.$user.$id == userID)
+            .delete()
         try await UserPlaylist.query(on: req.db)
             .filter(\UserPlaylist.$user.$id == userID)
             .delete()
-        // 필요하다면 다른 연관 테이블도 추가
         try await user.delete(on: req.db)
         return .noContent
     }
@@ -249,7 +385,13 @@ struct UserController: RouteCollection {
         user.favoriteArtists = update.favoriteArtists
         user.favoriteGenres = update.favoriteGenres
         try await user.save(on: req.db)
-        return UserDTO(from: user)
+        return UserDTO(
+            from: user,
+            accessToken: nil,
+            refreshToken: nil,
+            expiresIn: nil,
+            tokenType: nil
+        )
     }
 
     // MARK: - Get User Profile (Public)
@@ -261,7 +403,13 @@ struct UserController: RouteCollection {
         guard let user = try await User.find(userID, on: req.db) else {
             throw Abort(.notFound, reason: "User not found")
         }
-        return UserDTO(from: user)
+        return UserDTO(
+            from: user,
+            accessToken: nil,
+            refreshToken: nil,
+            expiresIn: nil,
+            tokenType: nil
+        )
     }
 
     // MARK: - Send Verification Code (이메일 인증번호만 발송)
@@ -293,8 +441,15 @@ struct LoginRequest: Content {
     let password: String
 }
 
+struct RefreshTokenRequest: Content {
+    let refreshToken: String
+}
+
 struct TokenResponse: Content {
-    let token: String
+    let accessToken: String
+    let refreshToken: String
+    let expiresIn: Int // seconds
+    let tokenType: String
 }
 
 struct RegisterRequest: Content {
@@ -319,9 +474,16 @@ struct SuccessResponse: Content {
 
 struct VerifyResponse: Content, CustomStringConvertible {
     let success: Bool
-    let token: String?
+    let accessToken: String?
+    let refreshToken: String?
+    let expiresIn: Int?
+    let tokenType: String?
     let reason: String?
+    
+    // Backward compatibility
+    var token: String? { accessToken }
+    
     var description: String {
-        "{success: \(success), token: \(token ?? "nil"), reason: \(reason ?? "nil")}"
+        "{success: \(success), accessToken: \(accessToken ?? "nil"), refreshToken: \(refreshToken ?? "nil"), expiresIn: \(expiresIn ?? 0), reason: \(reason ?? "nil")}"
     }
 }

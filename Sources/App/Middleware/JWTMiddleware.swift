@@ -10,12 +10,13 @@ import JWT
 
 struct JWTMiddleware: AsyncMiddleware {
     func respond(to req: Request, chainingTo next: AsyncResponder) async throws -> Response {
-        // Extract and verify the JWT token
         let token = try req.jwt.verify(as: UserPayload.self)
-        
-        // Store the authenticated user info (e.g., username) in the request's auth system
+
+        guard token.type == "access" else {
+            throw Abort(.unauthorized, reason: "Invalid token type. Access token required.")
+        }
+
         req.auth.login(token)
-        
         return try await next.respond(to: req)
     }
 }

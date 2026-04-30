@@ -9,11 +9,13 @@ import Vapor
 struct SongController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
         let songs = routes.grouped("api", "songs")
+        let protectedSongs = songs.grouped(JWTMiddleware())
+
         songs.get(use: index)
-        songs.post(use: create)
         songs.get(":songID", use: get)
-        songs.put(":songID", use: update)
-        songs.delete(":songID", use: delete)
+        protectedSongs.post(use: create)
+        protectedSongs.put(":songID", use: update)
+        protectedSongs.delete(":songID", use: delete)
     }
 
     @Sendable
