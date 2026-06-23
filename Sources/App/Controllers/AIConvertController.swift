@@ -30,13 +30,16 @@ struct AIConvertController: RouteCollection {
         aiConvert.get("discover-voices", use: discoverLalalVoices) // 새로운 엔드포인트 추가
     }
     
-    // MARK: - Lalal.ai API Configuration
+    // MARK: - Beam SVC Configuration
+    private var beamSVCBaseURL: String {
+        Environment.get("BEAM_SVC_URL") ?? "http://213.173.104.8:46399"
+    }
+    
+    // Legacy fields kept temporarily so old helper methods still compile.
+    // They are no longer used by the active routes.
     private let lalalBaseURL = "https://api.lalal.ai"
     private var lalalAPIKey: String {
-        guard let key = Environment.get("LALAL_AI_API_KEY") else {
-            fatalError("LALAL_AI_API_KEY environment variable must be set")
-        }
-        return key
+        Environment.get("LALAL_AI_API_KEY") ?? ""
     }
     
     // MARK: - Lalal.ai Supported Singer Voice IDs (실제 지원되는 가수들만)
@@ -56,111 +59,14 @@ struct AIConvertController: RouteCollection {
     
     // MARK: - Health Check
     func healthCheck(req: Request) async throws -> Response {
-        req.logger.info("🔍 Health check requested")
-        
-        // Lalal.ai API 제한 확인으로 헬스체크
-        let url = URL(string: "\(lalalBaseURL)/billing/get-limits/?key=\(lalalAPIKey)")!
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            req.logger.error("❌ Invalid response from Lalal.ai API")
-            throw Abort(.internalServerError, reason: "Invalid response from Lalal.ai API")
-        }
-        
-        req.logger.info("📡 Lalal.ai health check response: \(httpResponse.statusCode)")
-        
-        if httpResponse.statusCode == 200 {
-            return Response(
-                status: .ok,
-                headers: ["Content-Type": "application/json"],
-                body: .init(string: "{\"status\":\"healthy\",\"service\":\"Lalal.ai\"}")
-            )
-        } else {
-            return Response(
-                status: .serviceUnavailable,
-                headers: ["Content-Type": "application/json"],
-                body: .init(string: "{\"status\":\"unhealthy\",\"service\":\"Lalal.ai\"}")
-            )
-        }
+        req.logger.info("🔍 Proxying Beam SVC health check")
+        return try await proxyGet(req: req, path: "/ai-convert/health")
     }
     
-    // MARK: - List Available Voices (Lalal.ai API 사용)
-    func listVoices(req: Request) async throws -> AllVoicesResponse {
-        req.logger.info("🎤 Fetching available voices from Lalal.ai API")
-        
-        // Lalal.ai에서 제공하는 가수 Voice ID 매핑
-        let singerVoices = popularSingerVoices.map { singerVoice in
-            Voice(
-                voiceId: singerVoice.voiceId,
-                name: singerVoice.name,
-                language: singerVoice.language,
-                description: singerVoice.description,
-                category: singerVoice.category
-            )
-        }
-        
-        // Lalal.ai 기본 음성들 (실제 API에서 제공하는 voice_id들)
-        let defaultVoices = [
-            Voice(
-                voiceId: "1",
-                name: "Voice 1",
-                language: ["en"],
-                description: "Lalal.ai Voice 1",
-                category: "Default"
-            ),
-            Voice(
-                voiceId: "2",
-                name: "Voice 2",
-                language: ["en"],
-                description: "Lalal.ai Voice 2",
-                category: "Default"
-            ),
-            Voice(
-                voiceId: "3",
-                name: "Voice 3",
-                language: ["en"],
-                description: "Lalal.ai Voice 3",
-                category: "Default"
-            ),
-            Voice(
-                voiceId: "4",
-                name: "Voice 4",
-                language: ["en"],
-                description: "Lalal.ai Voice 4",
-                category: "Default"
-            ),
-            Voice(
-                voiceId: "5",
-                name: "Voice 5",
-                language: ["en"],
-                description: "Lalal.ai Voice 5",
-                category: "Default"
-            )
-        ]
-        
-        // 모든 음성 합치기
-        let allVoices = defaultVoices + singerVoices
-        
-        // 카테고리별로 그룹화
-        let groupedVoices = Dictionary(grouping: allVoices) { $0.category }
-        
-        req.logger.info("✅ All voices response: \(allVoices.count) voices available")
-        req.logger.info("   Default: \(defaultVoices.count), Singers: \(singerVoices.count)")
-        
-        // ✅ Build the type-safe response object
-        let voicesResponse = AllVoicesResponse(
-            voices: allVoices,
-            categories: groupedVoices,
-            total_count: allVoices.count,
-            breakdown: VoiceBreakdown(
-                default: defaultVoices.count,
-                singers: singerVoices.count,
-                custom: 0
-            )
-        )
-        
-        // ✅ Return the object directly. Vapor handles the encoding.
-        return voicesResponse
+    // MARK: - List Available Voices
+    func listVoices(req: Request) async throws -> Response {
+        req.logger.info("🎤 Proxying Beam SVC voices")
+        return try await proxyGet(req: req, path: "/ai-convert/voices")
     }
     
     // MARK: - List Singer Voices (가수 목소리 목록)
@@ -290,161 +196,71 @@ struct AIConvertController: RouteCollection {
         )
     }
     
-    // MARK: - Voice Conversion (수정된 버전)
+    // MARK: - Voice Conversion
     func convertVoice(req: Request) async throws -> Response {
-        req.logger.info("🎵 Voice conversion request received")
-        
-        // iOS 앱에서 보내는 파라미터 이름을 유연하게 처리 (backward compatibility)
-        let audioFile: File
-        let voiceId: String
-        let language: String
-        let outputFormat: String
-        let useSeparation: String
-        let voiceType: String // "default", "singer", "custom" 구분
-        
-        // multipart/form-data 파싱을 위한 구조체
-        struct VoiceConversionRequest: Content {
-            var source_audio: File?
-            var audioFile: File?
-            var audio_file: File?
-            var file: File?
-            var voiceId: String?
-            var voice_id: String?
-            var language: String?
-            var outputFormat: String?
-            var output_format: String?
-            var useSeparation: String?
-            var use_separation: String?
-            var voiceType: String? // 새로 추가
-            var voice_type: String?
+        req.logger.info("🎵 Proxying voice conversion to Beam SVC")
+        return try await proxyPost(req: req, path: "/ai-convert/voice-conversion")
+    }
+    
+    private func proxyGet(req: Request, path: String) async throws -> Response {
+        guard let url = URL(string: "\(beamSVCBaseURL)\(path)") else {
+            throw Abort(.internalServerError, reason: "Invalid BEAM_SVC_URL")
         }
         
-        let request = try req.content.decode(VoiceConversionRequest.self)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
         
-        // 디버깅을 위한 로그
-        req.logger.info("🔍 Form data analysis:")
-        req.logger.info("   source_audio: \(request.source_audio?.filename ?? "nil")")
-        req.logger.info("   audioFile: \(request.audioFile?.filename ?? "nil")")
-        req.logger.info("   audio_file: \(request.audio_file?.filename ?? "nil")")
-        req.logger.info("   file: \(request.file?.filename ?? "nil")")
-        req.logger.info("   voiceId: \(request.voiceId ?? "nil")")
-        req.logger.info("   language: \(request.language ?? "nil")")
-        req.logger.info("   outputFormat: \(request.outputFormat ?? "nil")")
-        req.logger.info("   useSeparation: \(request.useSeparation ?? "nil")")
-        req.logger.info("   voiceType: \(request.voiceType ?? request.voice_type ?? "nil")")
-        
-        // 오디오 파일 찾기 (source_audio 우선, audioFile fallback)
-        if let file = request.source_audio {
-            audioFile = file
-            req.logger.info("✅ Using source_audio parameter")
-        } else if let file = request.audioFile {
-            audioFile = file
-            req.logger.info("✅ Using audioFile parameter (backward compatibility)")
-        } else if let file = request.audio_file {
-            audioFile = file
-            req.logger.info("✅ Using audio_file parameter")
-        } else if let file = request.file {
-            audioFile = file
-            req.logger.info("✅ Using file parameter")
-        } else {
-            throw Abort(.badRequest, reason: "No audio file provided. Expected 'source_audio', 'audioFile', 'audio_file', or 'file'")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return makeProxyResponse(data: data, response: response)
+    }
+    
+    private func proxyPost(req: Request, path: String) async throws -> Response {
+        guard let url = URL(string: "\(beamSVCBaseURL)\(path)") else {
+            throw Abort(.internalServerError, reason: "Invalid BEAM_SVC_URL")
         }
         
-        // 파라미터 추출 (backward compatibility)
-        voiceId = request.voiceId ?? request.voice_id ?? "default"
-        language = request.language ?? "en"
-        outputFormat = request.outputFormat ?? request.output_format ?? "mp3"
-        useSeparation = request.useSeparation ?? request.use_separation ?? "true"
-        voiceType = request.voiceType ?? request.voice_type ?? "default"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 1800
         
-        req.logger.info("🎵 Converting voice with Lalal.ai")
-        req.logger.info("   Voice ID: \(voiceId)")
-        req.logger.info("   Voice Type: \(voiceType)")
-        req.logger.info("   Language: \(language)")
-        req.logger.info("   Audio file: \(audioFile.filename)")
-        req.logger.info("   Audio size: \(audioFile.data.readableBytes) bytes")
-        req.logger.info("   Use separation: \(useSeparation)")
-        
-        do {
-            // 가수 목소리인지 체크하고 적절한 변환 방법 선택
-            let convertedAudioData: Data
-            
-            // 디버깅을 위한 로그 추가
-            req.logger.info("🔍 Voice conversion type check:")
-            req.logger.info("   voiceType: \(voiceType)")
-            req.logger.info("   voiceId: \(voiceId)")
-            req.logger.info("   isSingerType: \(voiceType == "singer")")
-            
-            let isSingerVoice = popularSingerVoices.contains(where: { $0.voiceId == voiceId })
-            req.logger.info("   isSingerVoice: \(isSingerVoice)")
-            req.logger.info("   available singer voices: \(popularSingerVoices.map { $0.voiceId })")
-            
-            if (voiceType == "singer" || voiceId.hasSuffix("_singer")) && isSingerVoice {
-                // 가수 목소리로 변환 (Lalal.ai API 사용)
-                req.logger.info("🎤 Using Lalal.ai singer voice conversion")
-                convertedAudioData = try await convertToSingerVoiceWithLalal(
-                    audioFile: audioFile,
-                    singerVoiceId: voiceId,
-                    language: language,
-                    outputFormat: outputFormat,
-                    useSeparation: useSeparation,
-                    req: req
-                )
-            } else {
-                // 기본 음성 변환 (Lalal.ai API 사용)
-                req.logger.info("🎵 Using Lalal.ai default voice conversion")
-                let lalalVoiceId = getLalalVoiceId(singerVoiceId: voiceId, req: req)
-                convertedAudioData = try await changeVoiceWithLalal(
-                    audioFile: audioFile,
-                    voiceId: lalalVoiceId,
-                    req: req
-                )
-            }
-            
-            req.logger.info("✅ Voice conversion completed successfully")
-            req.logger.info("   Converted audio size: \(convertedAudioData.count) bytes")
-            
-            // iOS 호환성을 위한 오디오 파일 최적화
-            let optimizedAudioData = try await optimizeAudioForIOS(convertedAudioData, format: outputFormat, req: req)
-            
-            req.logger.info("🔧 Audio optimized for iOS")
-            req.logger.info("   Optimized size: \(optimizedAudioData.count) bytes")
-            
-            // 오디오 데이터를 직접 반환 (iOS 앱이 기대하는 형식)
-            var response = Response(body: .init(data: optimizedAudioData))
-            response.headers.contentType = HTTPMediaType(type: "audio", subType: outputFormat)
-            response.headers.add(name: "Content-Disposition", value: "attachment; filename=\"converted_audio.\(outputFormat)\"")
-            response.headers.add(name: "Content-Length", value: "\(optimizedAudioData.count)")
-            response.headers.add(name: "X-Voice-Type", value: voiceType)
-            response.headers.add(name: "X-Voice-ID", value: voiceId)
-            
-            return response
-            
-        } catch {
-            req.logger.error("❌ Voice conversion failed: \(error)")
-            req.logger.error("   Error type: \(type(of: error))")
-            req.logger.error("   Error description: \(error.localizedDescription)")
-            
-            // 상세한 오류 정보 로깅
-            if let abortError = error as? Abort {
-                req.logger.error("   Abort status: \(abortError.status)")
-                req.logger.error("   Abort reason: \(abortError.reason)")
-            }
-            
-            // 오류는 JSON 형식으로 반환
-            let errorResponse = VoiceConversionResponse(
-                success: false,
-                audioData: nil,
-                error: "Voice conversion failed: \(error.localizedDescription)"
-            )
-            
-            let jsonData = try JSONEncoder().encode(errorResponse)
-            var response = Response(body: .init(data: jsonData))
-            response.headers.contentType = HTTPMediaType(type: "application", subType: "json")
-            response.headers.add(name: "X-Error-Type", value: "\(type(of: error))")
-            
-            return response
+        if let contentType = req.headers.first(name: .contentType) {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
+        
+        if let body = req.body.data {
+            request.httpBody = Data(body.readableBytesView)
+        }
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 1800
+        config.timeoutIntervalForResource = 3600
+        let session = URLSession(configuration: config)
+        
+        let (data, response) = try await session.data(for: request)
+        return makeProxyResponse(data: data, response: response)
+    }
+    
+    private func makeProxyResponse(data: Data, response: URLResponse) -> Response {
+        let httpResponse = response as? HTTPURLResponse
+        var vaporResponse = Response(
+            status: HTTPResponseStatus(statusCode: httpResponse?.statusCode ?? 500),
+            body: .init(data: data)
+        )
+        
+        if let contentType = httpResponse?.value(forHTTPHeaderField: "Content-Type") {
+            vaporResponse.headers.replaceOrAdd(name: .contentType, value: contentType)
+        }
+        if let contentDisposition = httpResponse?.value(forHTTPHeaderField: "Content-Disposition") {
+            vaporResponse.headers.replaceOrAdd(name: .contentDisposition, value: contentDisposition)
+        }
+        if let contentLength = httpResponse?.value(forHTTPHeaderField: "Content-Length") {
+            vaporResponse.headers.replaceOrAdd(name: .contentLength, value: contentLength)
+        }
+        if let cacheHeader = httpResponse?.value(forHTTPHeaderField: "X-Beam-Cache") {
+            vaporResponse.headers.replaceOrAdd(name: "X-Beam-Cache", value: cacheHeader)
+        }
+        
+        return vaporResponse
     }
     
     // MARK: - Singer Voice Conversion with Lalal.ai API
