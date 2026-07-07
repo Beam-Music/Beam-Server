@@ -16,4 +16,5 @@ func routes(_ app: Application) throws {
     try app.register(collection: AIPreferenceController())
     try app.register(collection: AISongController())
     try app.register(collection: AIConvertController())
+    try app.register(collection: ConvertedSongController())
 }

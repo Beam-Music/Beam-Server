@@ -98,6 +98,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddCreatedAtColumnToAiSongs())
     app.migrations.add(AddIsAIGeneratedToSongs())
     app.migrations.add(AddMusicKitStoreIDToSongs())
+    app.migrations.add(CreateConvertedSong())
     
     app.migrations.add(CreateListeningHistory())
     app.migrations.add(CreateUserSongPreference())
